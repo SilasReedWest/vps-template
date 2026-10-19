@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>个人配置生成器（.env）</title>
+<style>
+:root{--b:#2563eb;--bg:#f6f7f9;--card:#fff;--bd:#e3e6ea;--t:#1f2328;--m:#667085;--err:#d92d20;--ok:#079455}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+header h1{font-size:17px;margin:0 12px 0 0}main{max-width:860px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px}.row{display:grid;grid-template-columns:220px 1fr;gap:6px 14px;padding:8px 0;border-top:1px dashed #eef0f2}
+.row:first-of-type{border-top:0}.lab{font-weight:600;padding-top:6px}.lab small{display:block;font-weight:400;color:var(--m);font-family:ui-monospace,Menlo,monospace;font-size:11px}
+.ctl{display:flex;gap:6px}.ctl input,.ctl select,.ctl textarea{flex:1;min-width:0;padding:7px 10px;border:1px solid #cfd4da;border-radius:8px;font:14px ui-monospace,Menlo,monospace;background:#fff}
+textarea{min-height:70px;resize:vertical}.help{grid-column:2;color:var(--m);font-size:13px;margin-top:-2px}.bad{border-color:var(--err)!important;background:#fff6f5!important}
+.msg{grid-column:2;color:var(--err);font-size:13px}button{border:1px solid #cfd4da;background:#fff;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
+button.p{background:var(--b);border-color:var(--b);color:#fff}button:hover{filter:brightness(.96)}
+.paste{background:#f0f6ff;border:1px solid #cfe0ff;border-radius:10px;padding:10px 12px;margin-bottom:8px}.paste textarea{width:100%;min-height:64px;padding:8px;border:1px solid #cfd4da;border-radius:8px;font:13px ui-monospace,Menlo,monospace}
+#status{margin-left:auto;font-size:13px;color:var(--m)}.tip{background:#fffbea;border:1px solid #f5e3a3;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:16px}
+dialog{border:1px solid var(--bd);border-radius:12px;width:min(720px,92vw)}dialog textarea{width:100%;min-height:260px;font:12.5px ui-monospace,Menlo,monospace}
+.qr{display:none;margin-top:10px;text-align:center}.qr svg{max-width:260px;height:auto;border:1px solid var(--bd);border-radius:8px}
+.url{font:13px ui-monospace,Menlo,monospace;background:#f3f4f6;border-radius:8px;padding:8px 10px;word-break:break-all;flex:1}
+.steps{margin:6px 0 0;padding-left:20px;font-size:13.5px}.warn{color:var(--err);font-size:13px}
+@media(max-width:640px){.row{grid-template-columns:1fr}.help,.msg{grid-column:1}}
+</style></head><body>
+<header><h1>🧩 个人配置生成器</h1>
+<button onclick="openFile()">📂 打开旧文件</button><button onclick="openPaste()">📋 粘贴旧内容</button>
+<button onclick="fillBlank()">✨ 空白项一键生成</button><button class="p" onclick="exportEnv()">⬇️ 导出 .env</button><button onclick="copyEnv()">复制全部</button><button onclick="$('client').scrollIntoView()">📱 客户端</button>
+<span id="status">本页离线运行，内容不会上传到任何地方</span><input type="file" id="file" accept=".env,.txt,text/plain" hidden></header>
+<main><div class="tip">用法：① 第一次使用：填好带 * 的项，其他点「✨ 空白项一键生成」→「⬇️ 导出 .env」。② 以后修改：「📂 打开旧文件」→ 改要改的那一格 → 重新导出。<br>导出的文件包含密码和密钥，只保存在你自己的网盘、U 盘或密码管理器里。</div>
+<div id="form"></div>
+<div class="card" id="client"><h2>📱 客户端：订阅地址 + 分流规则文件</h2>
+<div style="font-size:13.5px;color:var(--m)">根据上面填的内容自动生成。节点从订阅来；规则文件不含任何密码，可以放心保存。</div>
+<div class="row"><div class="lab">订阅地址<small>Clash 和小火箭用同一个</small></div><div class="ctl"><div class="url" id="subUrl">（填好域名、订阅端口、订阅路径、订阅 ID 后显示）</div><button onclick="copySub()">复制</button><button onclick="toggleQr(this)">二维码</button></div>
+<div class="help">和 3x-ui 面板里显示的订阅地址相同。Clash Party 导入时会自动拿到 Clash 格式（含 PROXY 策略组），小火箭拿到普通节点格式。<b>地址和二维码都相当于密码，别截图外发。</b></div>
+<div class="qr" id="qr" style="grid-column:1/-1"></div></div>
+<div class="row"><div class="lab">分流规则文件<small id="verTxt"></small></div><div class="ctl" style="flex-wrap:wrap"><button class="p" onclick="dlClient('clash')">⬇️ Clash 覆写</button><button class="p" onclick="dlClient('rocket')">⬇️ 小火箭配置</button></div>
+<div class="help">已包含「分流名单（追加）」里填的域名：追加直连放在金融直连段；追加住宅在两端走代理，VPS 端走住宅。</div><div class="msg" id="extraMsg"></div></div>
+<div class="row"><div class="lab">怎么用</div><div>
+<b>Mac · Clash Party</b><ol class="steps"><li>「订阅管理」→ 粘贴订阅地址 → 导入。</li><li>「覆写」→ 导入下载的 <code id="fnC"></code> → 绑定到这个订阅并启用（旧版本覆写停用）。</li><li>代理组 PROXY 选 <code class="nAuto"></code>（自动分流，默认就是第一个）。</li></ol>
+<b>iPhone · 小火箭</b><ol class="steps"><li>首页右上角「＋」→ 扫描二维码（或粘贴订阅地址）。</li><li>「配置」→ 导入下载的 <code id="fnR"></code>（用隔空投送或「文件」App）→ 点它 →「使用配置」。</li><li>首页选 <code class="nAuto"></code> 节点（自动分流）。</li></ol></div></div>
+</div></main>
+<dialog id="dlg"><h3 style="margin-top:0">粘贴旧的 .env 内容</h3><textarea id="dlgTxt" placeholder='KEY="value" 格式，整份粘贴进来'></textarea>
+<p style="text-align:right;margin-bottom:0"><button onclick="dlg.close()">取消</button> <button class="p" onclick="loadText(dlgTxt.value);dlg.close()">读入</button></p></dialog>
+<script>// 字段定义：网页工具与 .env 共用（单一来源）
+const SCHEMA = [
+ {sec:"基本信息", items:[
+  {k:"PROFILE_NAME", label:"这套配置的名字", def:"DMIT-LA", help:"随便起，方便区分多台机器，例如 DMIT-LA。只用字母、数字、横线。", re:"^[A-Za-z0-9-]+$"},
+ ]},
+ {sec:"版本（默认就是验证过的稳定组合，不懂就别改）", items:[
+  {k:"XUI_VERSION", label:"3x-ui 面板版本", def:"v3.10.2", help:"固定版本。升级前必须先在测试机上验证。", re:"^v\\d+\\.\\d+\\.\\d+$"},
+  {k:"XRAY_VERSION", label:"Xray 内核版本", def:"v26.6.27", help:"不要升到 v26.9 及以后：小火箭默认指纹会连不上。", re:"^v\\d+\\.\\d+\\.\\d+$"},
+ ]},
+ {sec:"域名与 Cloudflare", items:[
+  {k:"DOMAIN", label:"你的完整域名（含子域名）", def:"", ph:"例：node.example.xyz", help:"面板、订阅、备用节点都用它。在 Cloudflare 里必须是灰云（仅 DNS）。", re:"^([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$", req:true},
+  {k:"CF_API_TOKEN", label:"Cloudflare API 令牌（可选）", def:"", secret:true, help:"填了：自动改 DNS、申请证书不需要 80 端口。留空：按手册手动改 DNS。"},
+  {k:"ACME_EMAIL", label:"证书通知邮箱（可选）", def:"", ph:"例：you@example.com", help:"证书快过期时 Let's Encrypt 会发邮件提醒。", re:"^$|^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"},
+ ]},
+ {sec:"面板与订阅（带「生成」按钮的都可以留空，系统会自动生成随机值）", items:[
+  {k:"PANEL_PORT", label:"面板端口", def:"8443", help:"浏览器打开面板用的端口，1024–65535。", re:"^\\d{2,5}$", port:true},
+  {k:"PANEL_PATH", label:"面板访问路径", def:"", gen:"path", help:"网址后面那串随机字符，越乱越安全。点「生成」。"},
+  {k:"PANEL_USER", label:"面板用户名", def:"", gen:"user", secret:true},
+  {k:"PANEL_PASS", label:"面板密码", def:"", gen:"pass", secret:true},
+  {k:"SUB_PORT", label:"订阅端口", def:"2096", re:"^\\d{2,5}$", port:true},
+  {k:"SUB_PATH", label:"订阅路径", def:"", gen:"path", help:"订阅地址里的路径，点「生成」。"},
+ ]},
+ {sec:"用户（一个用户，四个节点名）", items:[
+  {k:"CLIENT_NAME", label:"用户名", def:"route-auto"},
+  {k:"CLIENT_UUID", label:"用户 UUID", def:"", gen:"uuid", secret:true, help:"相当于节点密码。沿用旧的，客户端就不用重新导入。"},
+  {k:"SUB_ID", label:"订阅 ID", def:"", gen:"subid", secret:true, help:"订阅地址的最后一段。泄露了就点「生成」换一个。"},
+  {k:"TRAFFIC_LIMIT_GB", label:"每月流量上限（GB，0=不限）", def:"750", re:"^\\d+$"},
+  {k:"TRAFFIC_RESET_DAY", label:"每月流量重置日（1–28）", def:"11", re:"^([1-9]|1\\d|2[0-8])$"},
+  {k:"NAME_AUTO", label:"节点名：自动分流", def:"DMIT-AUTO", help:"按住宅名单分流（日常用这个）。"},
+  {k:"NAME_VPS", label:"节点名：全走 VPS", def:"DMIT-VPS"},
+  {k:"NAME_RES", label:"节点名：全走住宅", def:"DMIT-RES"},
+  {k:"NAME_BACKUP", label:"节点名：备用（WebSocket）", def:"DMIT-BACKUP"},
+ ]},
+ {sec:"Reality 主节点", items:[
+  {k:"REALITY_PORT", label:"Reality 端口", def:"443", re:"^\\d{2,5}$", port:true},
+  {k:"REALITY_MODE", label:"伪装模式", def:"external", opts:["external"], help:"external = 伪装成扫描到的外部网站 + 本机过滤（DMIT 整改方案）。"},
+  {k:"REALITY_TARGET", label:"伪装目标网站", def:"xyfu.me", help:"失效时在面板里重新扫描一个，只改这里。只填域名，不要 https:// 和端口。", re:"^([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"},
+  {k:"REALITY_FILTER_PORT", label:"过滤入口端口（本机）", def:"4431", re:"^\\d{2,5}$", port:true, help:"DMIT 防滥用整改用，只监听本机。"},
+  {k:"REALITY_PRIVATE_KEY", label:"Reality 私钥", def:"", gen:"x25519", secret:true, help:"点「生成」会同时生成私钥和公钥。沿用旧的，客户端只需刷新订阅。"},
+  {k:"REALITY_PUBLIC_KEY", label:"Reality 公钥", def:"", help:"和私钥成对，不要单独改。"},
+  {k:"REALITY_SHORT_IDS", label:"Short ID（多个用英文逗号分隔）", def:"", gen:"shortids", secret:true, re:"^$|^[0-9a-f]{0,16}(,[0-9a-f]{0,16})*$"},
+  {k:"REALITY_FINGERPRINT", label:"客户端指纹", def:"chrome", opts:["chrome","safari","firefox","ios","edge","random"]},
+  {k:"REALITY_MIN_CLIENT_VER", label:"最小客户端版本", def:"", help:"默认留空：Xray v26.6.27 留空就能正常用（这也是固定这个版本的原因）。只有以后换成 v26.9 及以后的内核、客户端被拒绝连接时，才填 1.8.2。"},
+ ]},
+ {sec:"备用节点（VLESS + WebSocket + TLS）", items:[
+  {k:"BACKUP_PORT", label:"备用节点端口", def:"13266", re:"^\\d{2,5}$", port:true},
+  {k:"BACKUP_WS_PATH", label:"WebSocket 路径", def:"", gen:"wspath", help:"以 / 开头，点「生成」。"},
+ ]},
+ {sec:"住宅 IP（SOCKS5）", paste:true, items:[
+  {k:"RES_ENABLE", label:"启用住宅出口", def:"yes", opts:["yes","no"]},
+  {k:"RES_HOST", label:"住宅 IP / 地址", def:"", secret:true},
+  {k:"RES_PORT", label:"住宅端口", def:"", re:"^$|^\\d{2,5}$"},
+  {k:"RES_USER", label:"住宅用户名", def:"", secret:true},
+  {k:"RES_PASS", label:"住宅密码", def:"", secret:true},
+ ]},
+ {sec:"分流名单（追加，可选）", items:[
+  {k:"EXTRA_RES_DOMAINS", label:"追加：走住宅的域名", def:"", area:true, help:"每行一个，例如 example.com。会同时加到 VPS 住宅名单和两端客户端的代理规则。"},
+  {k:"EXTRA_DIRECT_DOMAINS", label:"追加：直连的域名（如新银行）", def:"", area:true, help:"每行一个。会同时加到两端客户端的直连规则。"},
+ ]},
+ {sec:"其他", items:[
+  {k:"XRAY_ACCESS_LOG", label:"服务器访问日志", def:"none", opts:["none","on"], help:"none = 不记录你访问过的网站（推荐）；on = 记录，排查问题时临时打开。"},
+ ]},
+];
+if (typeof module!=="undefined") module.exports={SCHEMA};
+</script><script>// .env 读写、智能粘贴、随机生成（浏览器与 Node 通用）
+const CORE = (() => {
+  const enc = s => String(s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n");
+  const dec = s => s.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+
+  function parseEnv(text) {
+    const out = {};
+    for (const raw of String(text).split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const m = line.match(/^(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/);
+      if (!m) continue;
+      let v = m[2].trim();
+      if (v.startsWith('"')) { const e = v.match(/^"((?:[^"\\]|\\.)*)"/); v = e ? dec(e[1]) : v.slice(1); }
+      else if (v.startsWith("'")) { const e = v.match(/^'([^']*)'/); v = e ? e[1] : v.slice(1); }
+      else v = v.replace(/\s+#.*$/, "");
+      out[m[1]] = v;
+    }
+    return out;
+  }
+
+  function buildEnv(schema, values) {
+    const L = ["# ==========================================================",
+      "# 个人配置文件（.env）—— 由网页工具生成",
+      "# 包含密码和密钥：不要上传 GitHub、不要截图、不要发到聊天里。",
+      "# 修改方法：用网页工具「打开旧文件」→ 改 → 重新导出。",
+      "# 生成时间：" + new Date().toISOString().slice(0, 16).replace("T", " "),
+      "# =========================================================="];
+    for (const s of schema) {
+      L.push("", "# ---- " + s.sec + " ----");
+      for (const f of s.items) {
+        if (f.help) L.push("# " + f.label + "：" + f.help); else L.push("# " + f.label);
+        L.push(f.k + '="' + enc(values[f.k] ?? f.def ?? "") + '"');
+      }
+    }
+    return L.join("\n") + "\n";
+  }
+
+  // 智能粘贴：识别住宅代理信息
+  const isHost = s => /^(\d{1,3}\.){3}\d{1,3}$/.test(s) || /^([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/.test(s);
+  const isPort = s => /^\d{2,5}$/.test(s) && +s > 0 && +s < 65536;
+  function parseProxy(text) {
+    const t = String(text).trim();
+    const r = {};
+    // 1) URL：socks5://user:pass@host:port
+    let m = t.match(/(?:socks5h?|socks|http|https):\/\/(?:([^:@\s\/]+):([^@\s\/]+)@)?([^:\s\/@]+):(\d{2,5})/i);
+    if (m) return clean({ RES_USER: m[1] && decodeURIComponent(m[1]), RES_PASS: m[2] && decodeURIComponent(m[2]), RES_HOST: m[3], RES_PORT: m[4] });
+    // 2) user:pass@host:port
+    m = t.match(/^([^:@\s]+):([^@\s]+)@([^:\s@]+):(\d{2,5})$/);
+    if (m) return clean({ RES_USER: m[1], RES_PASS: m[2], RES_HOST: m[3], RES_PORT: m[4] });
+    // 3) host:port@user:pass
+    m = t.match(/^([^:@\s]+):(\d{2,5})@([^:\s]+):(\S+)$/);
+    if (m && isHost(m[1])) return clean({ RES_HOST: m[1], RES_PORT: m[2], RES_USER: m[3], RES_PASS: m[4] });
+    // 4) 冒号分隔四段：host:port:user:pass 或 user:pass:host:port
+    const p = t.split(/[:|\s]+/).filter(Boolean);
+    if (p.length === 4) {
+      if (isHost(p[0]) && isPort(p[1])) return clean({ RES_HOST: p[0], RES_PORT: p[1], RES_USER: p[2], RES_PASS: p[3] });
+      if (isHost(p[2]) && isPort(p[3])) return clean({ RES_USER: p[0], RES_PASS: p[1], RES_HOST: p[2], RES_PORT: p[3] });
+    }
+    // 5) 带标签的多行文字
+    const lab = [
+      ["RES_HOST", /(?:^|\n|\s)(?:proxy\s*)?(?:ip(?:\s*address)?|host(?:name)?|server|address|地址|主机|服务器|代理\s*ip|ip\s*地址)\s*[:：=]\s*([^\s,，;；]+)/i],
+      ["RES_PORT", /(?:^|\n|\s)(?:port|端口)[^:：=\n]*[:：=]\s*(\d{2,5})/i],
+      ["RES_USER", /(?:^|\n|\s)(?:user(?:name)?|login|账号|帐号|用户名|用户)\s*[:：=]\s*([^\s,，;；]+)/i],
+      ["RES_PASS", /(?:^|\n|\s)(?:pass(?:word)?|pwd|密码)\s*[:：=]\s*([^\s,，;；]+)/i],
+    ];
+    for (const [k, re] of lab) { const x = ("\n" + t).match(re); if (x) r[k] = x[1]; }
+    if (r.RES_HOST && /:\d{2,5}$/.test(r.RES_HOST) && !r.RES_PORT) { const [h, po] = r.RES_HOST.split(":"); r.RES_HOST = h; r.RES_PORT = po; }
+    // 6) 兜底：只有 host:port
+    if (!r.RES_HOST) { m = t.match(/((?:\d{1,3}\.){3}\d{1,3}):(\d{2,5})/); if (m) { r.RES_HOST = m[1]; r.RES_PORT = r.RES_PORT || m[2]; } }
+    return clean(r);
+  }
+  const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v));
+
+  // 随机生成
+  const cr = () => (typeof crypto !== "undefined" ? crypto : require("crypto").webcrypto);
+  const rand = (n, chars) => { const a = new Uint8Array(n); cr().getRandomValues(a); return [...a].map(x => chars[x % chars.length]).join(""); };
+  const AZ = "abcdefghijklmnopqrstuvwxyz", AZ9 = AZ + "0123456789", ALL = AZ9 + "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const hex = n => rand(n, "0123456789abcdef");
+  const b64url = u8 => { let s = ""; u8.forEach(b => s += String.fromCharCode(b)); return (typeof btoa !== "undefined" ? btoa(s) : Buffer.from(s, "binary").toString("base64")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  async function x25519() {
+    const kp = await cr().subtle.generateKey({ name: "X25519" }, true, ["deriveBits"]);
+    const pub = new Uint8Array(await cr().subtle.exportKey("raw", kp.publicKey));
+    const pk8 = new Uint8Array(await cr().subtle.exportKey("pkcs8", kp.privateKey));
+    return { priv: b64url(pk8.slice(-32)), pub: b64url(pub) };
+  }
+  const gen = {
+    uuid: () => cr().randomUUID(),
+    pass: () => rand(20, ALL),
+    user: () => "u" + rand(9, AZ9),
+    path: () => rand(18, ALL),
+    wspath: () => "/" + rand(14, AZ9),
+    subid: () => rand(16, AZ9),
+    shortids: () => [hex(8), hex(16), hex(4), hex(12)].join(","),
+  };
+  return { parseEnv, buildEnv, parseProxy, gen, x25519 };
+})();
+if (typeof module !== "undefined") module.exports = CORE;
+</script><script>// 离线二维码生成（字节模式，纠错等级 M，版本 1–20）。算法依据 ISO/IEC 18004。
+const QR = (() => {
+  const ECC = [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26];
+  const BLK = [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16];
+  const rawModules = v => { let r = (16*v+128)*v+64; if (v >= 2) { const n = Math.floor(v/7)+2; r -= (25*n-10)*n-55; if (v >= 7) r -= 36; } return r; };
+  const dataCap = v => Math.floor(rawModules(v)/8) - ECC[v]*BLK[v];
+  const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z<<1) ^ ((z>>>7)*0x11D); z ^= ((y>>>i)&1)*x; } return z & 255; };
+  function rsDiv(n) { const r = new Array(n).fill(0); r[n-1] = 1; let root = 1;
+    for (let i = 0; i < n; i++) { for (let j = 0; j < n; j++) { r[j] = mul(r[j], root); if (j+1 < n) r[j] ^= r[j+1]; } root = mul(root, 2); } return r; }
+  function rsRem(data, div) { const r = new Array(div.length).fill(0);
+    for (const b of data) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => r[i] ^= mul(c, f)); } return r; }
+  const alignPos = (v, size) => { if (v === 1) return []; const n = Math.floor(v/7)+2, step = Math.ceil((v*4+4)/(n*2-2))*2, r = [6];
+    for (let p = size-7; r.length < n; p -= step) r.splice(1, 0, p); return r; };
+
+  function encode(text) {
+    const bytes = Array.from(new TextEncoder().encode(text));
+    let v = 1; for (; v <= 20; v++) if (4 + (v < 10 ? 8 : 16) + bytes.length*8 <= dataCap(v)*8) break;
+    if (v > 20) throw new Error("内容太长，无法生成二维码");
+    const bits = []; const put = (val, n) => { for (let i = n-1; i >= 0; i--) bits.push((val>>>i)&1); };
+    put(4, 4); put(bytes.length, v < 10 ? 8 : 16); bytes.forEach(b => put(b, 8));
+    const cap = dataCap(v)*8; put(0, Math.min(4, cap - bits.length)); while (bits.length % 8) bits.push(0);
+    for (let p = 0xEC; bits.length < cap; p ^= 0xEC ^ 0x11) put(p, 8);
+    const data = []; for (let i = 0; i < bits.length; i += 8) data.push(parseInt(bits.slice(i, i+8).join(""), 2));
+    // 分块 + 纠错 + 交织
+    const nb = BLK[v], el = ECC[v], raw = Math.floor(rawModules(v)/8), nShort = nb - raw % nb, sLen = Math.floor(raw/nb), div = rsDiv(el), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) { const d = data.slice(k, k + sLen - el + (i < nShort ? 0 : 1)); k += d.length;
+      const e = rsRem(d, div); if (i < nShort) d.push(0); blocks.push(d.concat(e)); }
+    const cw = []; for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== sLen-el || j >= nShort) cw.push(b[i]); });
+    // 画功能图形
+    const size = v*4+17, M = [...Array(size)].map(() => Array(size).fill(false)), F = [...Array(size)].map(() => Array(size).fill(false));
+    const set = (x, y, d) => { M[y][x] = d; F[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i%2 === 0); set(i, 6, i%2 === 0); }
+    for (const [cx, cy] of [[3,3],[size-4,3],[3,size-4]]) for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const x = cx+dx, y = cy+dy, d = Math.max(Math.abs(dx), Math.abs(dy)); if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4); }
+    const ap = alignPos(v, size), L = ap.length-1;
+    ap.forEach((ax, i) => ap.forEach((ay, j) => { if ((i === 0 && j === 0) || (i === 0 && j === L) || (i === L && j === 0)) return;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax+dx, ay+dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }));
+    const fmt = mask => { const d = mask; let r = d; for (let i = 0; i < 10; i++) r = (r<<1) ^ ((r>>>9)*0x537); const b = ((d<<10)|r) ^ 0x5412, g = i => ((b>>>i)&1) === 1;
+      for (let i = 0; i <= 5; i++) set(8, i, g(i)); set(8, 7, g(6)); set(8, 8, g(7)); set(7, 8, g(8)); for (let i = 9; i < 15; i++) set(14-i, 8, g(i));
+      for (let i = 0; i < 8; i++) set(size-1-i, 8, g(i)); for (let i = 8; i < 15; i++) set(8, size-15+i, g(i)); set(8, size-8, true); };
+    fmt(0);
+    if (v >= 7) { let r = v; for (let i = 0; i < 12; i++) r = (r<<1) ^ ((r>>>11)*0x1F25); const b = (v<<12)|r;
+      for (let i = 0; i < 18; i++) { const d = ((b>>>i)&1) === 1, a = size-11+i%3, c = Math.floor(i/3); set(a, c, d); set(c, a, d); } }
+    // 放数据
+    let i = 0;
+    for (let right = size-1; right >= 1; right -= 2) { if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) { const x = right-j, up = ((right+1)&2) === 0, y = up ? size-1-vert : vert;
+        if (!F[y][x] && i < cw.length*8) { M[y][x] = ((cw[i>>>3] >>> (7-(i&7))) & 1) === 1; i++; } } }
+    // 选掩码
+    const masks = [(x,y)=>(x+y)%2===0,(x,y)=>y%2===0,(x,y)=>x%3===0,(x,y)=>(x+y)%3===0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2===0,
+      (x,y)=>x*y%2+x*y%3===0,(x,y)=>(x*y%2+x*y%3)%2===0,(x,y)=>((x+y)%2+x*y%3)%2===0];
+    const apply = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && masks[m](x, y)) M[y][x] = !M[y][x]; };
+    const penalty = () => { let p = 0, dark = 0; const line = get => { let run = 1, s = 0; for (let k = 1; k < size; k++) { if (get(k) === get(k-1)) run++; else { if (run >= 5) s += run-2; run = 1; } } if (run >= 5) s += run-2;
+        const str = Array.from({length: size}, (_, k) => get(k) ? 1 : 0).join(""); for (const pat of ["10111010000", "00001011101"]) { let q = str.indexOf(pat); while (q >= 0) { s += 40; q = str.indexOf(pat, q+1); } } return s; };
+      for (let k = 0; k < size; k++) { p += line(x => M[k][x]) + line(y => M[y][k]); }
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { if (M[y][x]) dark++; if (x < size-1 && y < size-1 && M[y][x] === M[y][x+1] && M[y][x] === M[y+1][x] && M[y][x] === M[y+1][x+1]) p += 3; }
+      return p + Math.floor(Math.abs(dark*20 - size*size*10) / (size*size)) * 10; };
+    let best = 0, bestP = Infinity;
+    for (let m = 0; m < 8; m++) { apply(m); fmt(m); const p = penalty(); if (p < bestP) { bestP = p; best = m; } apply(m); }
+    apply(best); fmt(best);
+    return M;
+  }
+  function svg(text, px = 4) {
+    const M = encode(text), n = M.length, q = 4; let d = "";
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (M[y][x]) d += `M${x+q},${y+q}h1v1h-1z`;
+    const s = (n + q*2);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${s}" width="${s*px}" height="${s*px}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  }
+  return { encode, svg };
+})();
+if (typeof module !== "undefined") module.exports = QR;
+</script><script>// 客户端：订阅地址 + 用模板生成 Clash 覆写 / 小火箭配置（追加名单）
+const CLIENT = (() => {
+  const slash = p => { p = String(p || "").replace(/^\/+|\/+$/g, ""); return p ? "/" + p + "/" : "/"; };
+  const subUrl = v => v.DOMAIN && v.SUB_ID ? `https://${v.DOMAIN}${String(v.SUB_PORT) === "443" ? "" : ":" + v.SUB_PORT}${slash(v.SUB_PATH)}${v.SUB_ID}` : "";
+  // 与 VPS 端 apply.py 同口径：domain:/full:/keyword:/geosite: 前缀，或直接写域名
+  function parse(s) {
+    const out = [], bad = [];
+    for (let d of String(s || "").replace(/\\n/g, "\n").split(/[\s,，]+/)) {
+      d = d.trim().toLowerCase(); const ipRaw = d.startsWith("ip:") ? d.slice(3) : null; d = d.replace(/^https?:\/\//, "").split("/")[0];
+      if (!d) continue;
+      let [t, x] = d.includes(":") ? d.split(/:(.*)/) : ["domain", d];
+      x = (x || "").replace(/^[*+]?\./, "");
+      if (t === "ip") { x = ipRaw; d = "ip:" + ipRaw; }
+      const ok = t === "ip" ? /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(x) : t === "geosite" ? /^[a-z0-9@!_-]+$/.test(x) : /^([a-z0-9-]+\.)*[a-z0-9-]+$/.test(x) && (t === "keyword" || x.includes("."));
+      if (!ok || !["domain", "full", "keyword", "geosite", "ip"].includes(t)) { bad.push(d); continue; }
+      out.push([t, x]);
+    }
+    return { out, bad };
+  }
+  const RT = { domain: "DOMAIN-SUFFIX", full: "DOMAIN", keyword: "DOMAIN-KEYWORD" };
+  function lines(list, pol, clash) {
+    const r = [];
+    for (const [t, x] of list) {
+      if (t === "geosite") { if (clash) r.push(`GEOSITE,${x},${pol}`); else r.push(`# 小火箭不支持 geosite:${x}，请改写成具体域名`); }
+      else if (t === "ip") r.push(`IP-CIDR,${x.includes("/") ? x : x + "/32"},${pol},no-resolve`);
+      else r.push(`${RT[t]},${x},${pol}`);
+    }
+    return r;
+  }
+  function fill(tpl, v, clash) {
+    const ind = clash ? "  " : "", dash = clash ? "- " : "";
+    const blk = (key, list, pol, title) => {
+      const L = lines(list, pol, clash);
+      return L.length ? [`# ${title}（来自 .env，共 ${list.length} 项）`, ...L].map(l => ind + (l.startsWith("#") ? l : dash + l)).join("\n") + "\n" + (clash || key === "d" ? "" : "\n") : "";
+    };
+    const d = parse(v.EXTRA_DIRECT_DOMAINS).out, p = parse(v.EXTRA_RES_DOMAINS).out;
+    return tpl.replace(new RegExp(`^${ind}# @@EXTRA_DIRECT@@\\n`, "m"), blk("d", d, "DIRECT", "追加直连"))
+              .replace(new RegExp(`^${ind}# @@EXTRA_PROXY@@\\n`, "m"), blk("p", p, "PROXY", "追加住宅（客户端走代理，VPS 端走住宅）"));
+  }
+  const clash = (tpl, v) => fill(tpl, v, true), rocket = (tpl, v) => fill(tpl, v, false);
+  return { subUrl, parse, clash, rocket };
+})();
+if (typeof module !== "undefined") module.exports = CLIENT;
+</script><script>const TPL = {"clash": "# ============================================================\n# Clash Party 覆写 rules4.3｜人在中国大陆使用（2026-10-18）\n#\n# 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，\n# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.3）决定走住宅还是 VPS 出口。\n# 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。\n# 与 iPhone 端 myconfig4.3.conf 同版本、同口径。\n# ============================================================\n\nmode: rule\n\n# 不使用 IPv6。\nipv6: false\n\n# 进程识别：用于迅雷整体直连。\nfind-process-mode: strict\n\n# 域名嗅探：App 直接用 IP 连接时，从 TLS/HTTP/QUIC 中还原域名用于规则匹配。\n# override-destination 保持 false：发往 VPS 的仍是原目标，由 3x-ui 入站嗅探在 VPS 端还原域名。\n# 「嗅探覆写」开关保持关闭，以本文件为准。\nsniffer:\n  enable: true\n  override-destination: false\n  parse-pure-ip: true\n  force-dns-mapping: true\n  sniff:\n    HTTP:\n      ports: [80, 8080-8880]\n    TLS:\n      ports: [443, 8443]\n    QUIC:\n      ports: [443, 8443]\n  skip-domain:\n    - \"+.push.apple.com\"\n  # Telegram 使用 MTProto 直连 IP，不做嗅探\n  skip-dst-address:\n    - 91.105.192.0/23\n    - 91.108.4.0/22\n    - 91.108.8.0/21\n    - 91.108.16.0/21\n    - 91.108.56.0/22\n    - 95.161.64.0/20\n    - 149.154.160.0/20\n    - 185.76.151.0/24\n\ndns:\n  enable: true\n  ipv6: false\n  enhanced-mode: fake-ip\n  fake-ip-range: 198.18.0.1/16\n  fake-ip-filter:\n    - \"*.lan\"\n    - \"*.local\"\n    - \"*.home.arpa\"\n    - localhost.ptlogin2.qq.com\n    - captive.apple.com\n  nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n  proxy-server-nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n  # 命中 DIRECT 的连接统一用国内 DNS 解析，保证直连金融类网站「DNS 与出口都在国内」。\n  direct-nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n  direct-nameserver-follow-policy: false\n  nameserver-policy:\n    \"geosite:cn,apple-cn\":\n      - 223.5.5.5\n      - 119.29.29.29\n    \"geosite:geolocation-!cn\":\n      - \"https://1.1.1.1/dns-query#PROXY\"\n      - \"https://8.8.8.8/dns-query#PROXY\"\n\nrules:\n  # 广告拦截不启用：category-ads-all 会误拦 OpenAI / TikTok 等服务的统计子域名。\n\n  # 1. 本地和私有网络\n  - GEOSITE,private,DIRECT\n  - GEOIP,private,DIRECT,no-resolve\n\n  # 2. 迅雷：整体直连，不进 VPS（VPS 端屏蔽 BT）\n  - PROCESS-NAME,Thunder,DIRECT\n  - PROCESS-NAME,迅雷,DIRECT\n\n  # 2.1 Claude Mac App 与 Claude Code：按程序整体走代理（域名规则之外再加一道保险）\n  - PROCESS-NAME,Claude,PROXY\n  - PROCESS-NAME,Claude Helper,PROXY\n  - PROCESS-NAME,Claude Helper (Renderer),PROXY\n  - PROCESS-NAME,Claude Helper (GPU),PROXY\n  - PROCESS-NAME,Claude Helper (Plugin),PROXY\n  - PROCESS-NAME,claude,PROXY\n\n  # 3. Apple / iCloud：统一直连（国区 Apple ID）\n  - GEOSITE,apple-cn,DIRECT\n  - DOMAIN-SUFFIX,apple.com,DIRECT\n  - DOMAIN-SUFFIX,apple.com.cn,DIRECT\n  - DOMAIN-SUFFIX,icloud.com,DIRECT\n  - DOMAIN-SUFFIX,icloud.com.cn,DIRECT\n  - DOMAIN-SUFFIX,icloud-content.com,DIRECT\n  - DOMAIN-SUFFIX,apple-cloudkit.com,DIRECT\n  - DOMAIN-SUFFIX,apple-livephotoskit.com,DIRECT\n  - DOMAIN-SUFFIX,cdn-apple.com,DIRECT\n  - DOMAIN-SUFFIX,mzstatic.com,DIRECT\n  - DOMAIN-SUFFIX,itunes.com,DIRECT\n  - DOMAIN-SUFFIX,apzones.com,DIRECT\n  - DOMAIN-SUFFIX,me.com,DIRECT\n  - DOMAIN-SUFFIX,apple-dns.net,DIRECT\n  - DOMAIN-SUFFIX,networking.apple,DIRECT\n  - DOMAIN-SUFFIX,safebrowsing.apple,DIRECT\n  # Apple 自有 IP 段（17.0.0.0/8）：系统对时、推送等直接连 IP 的连接，原本落入兜底走了代理\n  - IP-CIDR,17.0.0.0/8,DIRECT,no-resolve\n\n  # 4. 其他明确直连的国内服务\n  # 4.0 Microsoft Copilot：明确走代理（到 VPS 后走 VPS 出口，不走住宅）\n  # 必须排在 microsoft@cn 前面，否则 copilot.microsoft.com 会被判直连。\n  - PROCESS-NAME,Copilot,PROXY\n  - DOMAIN-SUFFIX,copilot.microsoft.com,PROXY\n  - DOMAIN-SUFFIX,copilot.com,PROXY\n  - DOMAIN-SUFFIX,copilot.cloud.microsoft,PROXY\n  - DOMAIN,sydney.bing.com,PROXY\n  - DOMAIN,edgeservices.bing.com,PROXY\n  - GEOSITE,microsoft@cn,DIRECT\n  - GEOSITE,steam@cn,DIRECT\n  - GEOSITE,bilibili,DIRECT\n\n  # 5. 政务/公共服务\n  - DOMAIN-SUFFIX,gov.cn,DIRECT\n  - DOMAIN-SUFFIX,12377.cn,DIRECT\n  - DOMAIN-SUFFIX,12333.cn,DIRECT\n  - DOMAIN-SUFFIX,chinatax.gov.cn,DIRECT\n\n  # 6. 金融/支付（大陆、香港、澳门、新加坡账户）：强制直连\n  # PayPal（大陆账户）\n  - DOMAIN-SUFFIX,paypal.com,DIRECT\n  - DOMAIN-SUFFIX,paypalobjects.com,DIRECT\n  - DOMAIN-SUFFIX,paypal.me,DIRECT\n  - DOMAIN-SUFFIX,paypal-community.com,DIRECT\n  # Wise / Payoneer / Airwallex\n  - DOMAIN-SUFFIX,wise.com,DIRECT\n  - DOMAIN-SUFFIX,transferwise.com,DIRECT\n  - DOMAIN-SUFFIX,payoneer.com,DIRECT\n  - DOMAIN-SUFFIX,airwallex.com,DIRECT\n  # Starryblu（新加坡 WoTransfer）\n  - DOMAIN-SUFFIX,starryblu.com,DIRECT\n  - DOMAIN-SUFFIX,wotransfer.com,DIRECT\n  # 香港 / 澳门银行与钱包（汇丰仅香港站）\n  - DOMAIN-SUFFIX,hsbc.com.hk,DIRECT\n  - DOMAIN-SUFFIX,hangseng.com,DIRECT\n  - DOMAIN-SUFFIX,za.group,DIRECT\n  - DOMAIN-SUFFIX,alipayhk.com,DIRECT\n  - DOMAIN-SUFFIX,antbank.hk,DIRECT\n  - DOMAIN-SUFFIX,antbank.mo,DIRECT\n  - DOMAIN-SUFFIX,elebank.com,DIRECT\n  - DOMAIN-SUFFIX,airstarbank.com,DIRECT\n  # 4.3 新增（日志发现走了代理）：长桥证券、众安/汇丰/蚂蚁银行附属域名、熊猫速汇\n  - DOMAIN-SUFFIX,lbkrs.com,DIRECT\n  - DOMAIN-SUFFIX,longbridgeapp.com,DIRECT\n  - DOMAIN-SUFFIX,longbridge.com,DIRECT\n  - DOMAIN-SUFFIX,longportapp.com,DIRECT\n  - DOMAIN-SUFFIX,lbctrl.com,DIRECT\n  - DOMAIN-SUFFIX,zaticdn.com,DIRECT\n  - DOMAIN-SUFFIX,zajourney.com,DIRECT\n  - DOMAIN-SUFFIX,zainvest.group,DIRECT\n  - DOMAIN,hsbc.edge.sdk.awswaf.com,DIRECT\n  - DOMAIN,c-hsbc.lytics.io,DIRECT\n  - DOMAIN-SUFFIX,antbankmacau.com,DIRECT\n  - DOMAIN-SUFFIX,marmot-cloud.com,DIRECT\n  - DOMAIN,antbank.activity.wbrks.com,DIRECT\n  - DOMAIN-SUFFIX,pandaremit.com,DIRECT\n  # @@EXTRA_DIRECT@@\n\n  # 7. 海外服务：前置代理（住宅/VPS 由 VPS 端决定）\n  # @@EXTRA_PROXY@@\n  # 7.1 AI：合集 + 关键词兜底\n  - GEOSITE,openai,PROXY\n  - DOMAIN-KEYWORD,openai,PROXY\n  # Claude 全系（网页 / Mac App / Claude Code）：合集 + 显式域名 + 关键词 + 官方 IP 段，宁多勿漏\n  - GEOSITE,anthropic,PROXY\n  - DOMAIN-KEYWORD,anthropic,PROXY\n  - DOMAIN-KEYWORD,claude,PROXY\n  - DOMAIN-SUFFIX,anthropic.com,PROXY\n  - DOMAIN-SUFFIX,claude.ai,PROXY\n  - DOMAIN-SUFFIX,claude.com,PROXY\n  - DOMAIN-SUFFIX,claudeusercontent.com,PROXY\n  - DOMAIN-SUFFIX,clau.de,PROXY\n  - DOMAIN-SUFFIX,claude.dev,PROXY\n  - DOMAIN-SUFFIX,claudemcpclient.com,PROXY\n  - DOMAIN-SUFFIX,claudemcpcontent.com,PROXY\n  # Claude 用到的第三方：统计（Fathom）、Claude Code 遥测（Datadog）、登录人机验证（Cloudflare）、功能开关（Statsig）、客服（Intercom）\n  - DOMAIN,servd-anthropic-website.b-cdn.net,PROXY\n  - DOMAIN,cdn.usefathom.com,PROXY\n  - DOMAIN,http-intake.logs.us5.datadoghq.com,PROXY\n  - DOMAIN,browser-intake-us5-datadoghq.com,PROXY\n  - DOMAIN,challenges.cloudflare.com,PROXY\n  - DOMAIN-SUFFIX,statsig.com,PROXY\n  - DOMAIN-SUFFIX,statsigapi.net,PROXY\n  - DOMAIN-SUFFIX,featuregates.org,PROXY\n  - DOMAIN-SUFFIX,intercom.io,PROXY\n  - DOMAIN-SUFFIX,intercomcdn.com,PROXY\n  - IP-CIDR,160.79.104.0/23,PROXY,no-resolve\n  - GEOSITE,xai,PROXY\n  # 7.2 社交 / 常用\n  - GEOSITE,meta,PROXY\n  - GEOSITE,google,PROXY\n  - GEOSITE,youtube,PROXY\n  - GEOSITE,github,PROXY\n  - GEOSITE,telegram,PROXY\n  - GEOSITE,twitter,PROXY\n  - GEOSITE,discord,PROXY\n  - GEOSITE,reddit,PROXY\n  - GEOSITE,spotify,PROXY\n  # 7.3 流媒体大站\n  - GEOSITE,netflix,PROXY\n  - GEOSITE,disney,PROXY\n  - GEOSITE,primevideo,PROXY\n  - GEOSITE,hbo,PROXY\n  - DOMAIN-SUFFIX,paramountplus.com,PROXY\n  - DOMAIN-SUFFIX,pplusstatic.com,PROXY\n  - DOMAIN-SUFFIX,peacocktv.com,PROXY\n  # 7.4 TikTok / 字节系海外\n  - GEOSITE,tiktok,PROXY\n  - DOMAIN-KEYWORD,tiktok,PROXY\n  - DOMAIN-SUFFIX,byteoversea.com,PROXY\n  - DOMAIN-SUFFIX,lemon8-app.com,PROXY\n  # 7.5 美国电商：Amazon / Temu / SHEIN 与国内体系有交集，显式前置\n  - DOMAIN-SUFFIX,amazon.com,PROXY\n  - DOMAIN-SUFFIX,media-amazon.com,PROXY\n  - DOMAIN-SUFFIX,ssl-images-amazon.com,PROXY\n  - DOMAIN-SUFFIX,temu.com,PROXY\n  - DOMAIN-SUFFIX,shein.com,PROXY\n  - GEOSITE,shopify,PROXY\n  # 7.6 支付/跨境工作平台（海外主体）\n  - GEOSITE,stripe,PROXY\n  - DOMAIN-SUFFIX,mercury.com,PROXY\n  - DOMAIN-SUFFIX,deel.com,PROXY\n  - DOMAIN-SUFFIX,upwork.com,PROXY\n  - DOMAIN-SUFFIX,fiverr.com,PROXY\n  - DOMAIN-SUFFIX,paddle.com,PROXY\n  - DOMAIN-SUFFIX,lemonsqueezy.com,PROXY\n  - DOMAIN-SUFFIX,revolut.com,PROXY\n  # 7.7 中国团队的海外产品\n  - DOMAIN-SUFFIX,rednote.com,PROXY\n  - DOMAIN-SUFFIX,rednote.com.my,PROXY\n  - DOMAIN-SUFFIX,rednotecdn.com,PROXY\n  # 7.8 检测网站：browserleaks 被国内加速列表收录为直连，强制代理以反映真实出口\n  - DOMAIN-SUFFIX,browserleaks.com,PROXY\n  - DOMAIN-SUFFIX,browserleaks.net,PROXY\n\n  # 8. 已知国内域名直连\n  # 4.3 新增：日志里发现的国内 App 漏网域名（国内规则集没收录，原本落入兜底走了 VPS）\n  # 停车、汽车、收钱吧、DeepSeek、抖音/汽水音乐/抖音支付、中国移动、个推、123云盘等\n  - DOMAIN-SUFFIX,deepseek.com,DIRECT\n  - DOMAIN-SUFFIX,deepseeksvc.com,DIRECT\n  - DOMAIN-SUFFIX,shanghai-parking.com,DIRECT\n  - DOMAIN-SUFFIX,risingauto.com,DIRECT\n  - DOMAIN-SUFFIX,rauto.com,DIRECT\n  - DOMAIN-SUFFIX,saicmotor.com,DIRECT\n  - DOMAIN-SUFFIX,ebanma.com,DIRECT\n  - DOMAIN-SUFFIX,shouqianba.com,DIRECT\n  - DOMAIN-SUFFIX,qishui.com,DIRECT\n  - DOMAIN-SUFFIX,ecombdimg.com,DIRECT\n  - DOMAIN-SUFFIX,ecombdstatic.com,DIRECT\n  - DOMAIN-SUFFIX,ecombdpage.com,DIRECT\n  - DOMAIN-SUFFIX,bytemaimg.com,DIRECT\n  - DOMAIN-SUFFIX,bytemastatic.com,DIRECT\n  - DOMAIN-SUFFIX,huoshanimg.com,DIRECT\n  - DOMAIN-SUFFIX,byteeffecttos.com,DIRECT\n  - DOMAIN-SUFFIX,idouyinvod.com,DIRECT\n  - DOMAIN-SUFFIX,oceanengine.com,DIRECT\n  - DOMAIN-SUFFIX,doupay.com,DIRECT\n  - DOMAIN-SUFFIX,meishesdk.com,DIRECT\n  - DOMAIN-SUFFIX,wasu.tv,DIRECT\n  - DOMAIN-SUFFIX,cmicapm.com,DIRECT\n  - DOMAIN-SUFFIX,komect.com,DIRECT\n  - DOMAIN-SUFFIX,getui.net,DIRECT\n  - DOMAIN-SUFFIX,123clouddrive.net,DIRECT\n  - DOMAIN-SUFFIX,alibabachengdun.com,DIRECT\n  - DOMAIN-SUFFIX,aliapp.org,DIRECT\n  - GEOSITE,cn,DIRECT\n\n  # 9. 已知非中国域名代理（放在 GEOIP 前，避免本地解析）\n  - GEOSITE,geolocation-!cn,PROXY\n\n  # 10. 域名规则未覆盖时按 IP 判断（no-resolve：不为匹配规则而触发本地 DNS）\n  - GEOIP,CN,DIRECT,no-resolve\n\n  # 10.1 微信海外服务器：微信大量连接直接连 IP，香港/新加坡等地的腾讯服务器（AS132203）\n  # 不在国内 IP 段，原本会落入 MATCH 走代理，导致图片发不出、转圈、红色感叹号。\n  # 放在兜底前：前面按域名分好的流量（AI、住宅名单等）不受影响。\n  - IP-ASN,132203,DIRECT,no-resolve\n\n  # 11. 兜底\n  - MATCH,PROXY\n", "rocket": "# ============================================================\n# Shadowrocket 配置 4.3｜人在中国大陆使用（2026-10-18）\n#\n# 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，\n# 到达 VPS 后由 3x-ui 住宅路由表（住宅ip路由规则4.3）决定走住宅还是 VPS 出口。\n# 终端里的显式 PROXY 规则只为一件事：防止被后面的 China 规则 / GEOIP,CN 误判直连。\n# 与 Mac 端 rules4.3.yaml 同版本、同口径。\n#\n# 原则：Shadowrocket 原生语法；不启用 Rewrite / 脚本 / MITM；广告拦截默认关闭。\n# ============================================================\n\n[General]\n\n# 局域网、回环地址和 Apple 联网检测不进代理。\n# skip-proxy 不等于 DIRECT，[Rule] 中仍有对应的直连规则。\nskip-proxy = localhost, *.local, *.lan, *.home.arpa, captive.apple.com, 10.0.0.0/8, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16\n\ntun-excluded-routes = 10.0.0.0/8, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 255.255.255.255/32\n\n# 直连域名用国内 DoH 解析；代理域名由 VPS 端解析。\ndns-server = https://dns.alidns.com/dns-query, https://doh.pub/dns-query\nfallback-dns-server = system\ndns-direct-system = false\n# 直连域名解析失败就失败，不退回代理（支付类账号登录 IP 须与大陆身份一致）。\ndns-direct-fallback-proxy = false\n\n# 节点不支持 UDP 时拒绝，而不是退回直连暴露真实 IP。\nudp-policy-not-supported-behaviour = REJECT\n\nprivate-ip-answer = true\n\nipv6 = false\nprefer-ipv6 = false\n\n\n[Rule]\n\n# ------------------------------------------------------------\n# 1. 本地、私网和系统联网检测：直连\n# ------------------------------------------------------------\nDOMAIN,localhost,DIRECT\nDOMAIN-SUFFIX,local,DIRECT\nDOMAIN-SUFFIX,lan,DIRECT\nDOMAIN-SUFFIX,home.arpa,DIRECT\nDOMAIN,captive.apple.com,DIRECT\n\nIP-CIDR,10.0.0.0/8,DIRECT,no-resolve\nIP-CIDR,127.0.0.0/8,DIRECT,no-resolve\nIP-CIDR,169.254.0.0/16,DIRECT,no-resolve\nIP-CIDR,172.16.0.0/12,DIRECT,no-resolve\nIP-CIDR,192.168.0.0/16,DIRECT,no-resolve\n\n\n# ------------------------------------------------------------\n# 2. Apple / App Store / iCloud：统一直连（国区 Apple ID）\n# 购买/更新会同时访问认证、商店 API、下载调度和 CDN，必须同一出口。\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,apple.com,DIRECT\nDOMAIN-SUFFIX,apple.com.cn,DIRECT\nDOMAIN-SUFFIX,icloud.com,DIRECT\nDOMAIN-SUFFIX,icloud.com.cn,DIRECT\nDOMAIN-SUFFIX,icloud-content.com,DIRECT\nDOMAIN-SUFFIX,apple-cloudkit.com,DIRECT\nDOMAIN-SUFFIX,apple-livephotoskit.com,DIRECT\nDOMAIN-SUFFIX,cdn-apple.com,DIRECT\nDOMAIN-SUFFIX,mzstatic.com,DIRECT\nDOMAIN-SUFFIX,itunes.com,DIRECT\nDOMAIN-SUFFIX,apzones.com,DIRECT\nDOMAIN-SUFFIX,me.com,DIRECT\nDOMAIN-SUFFIX,apple-dns.net,DIRECT\nDOMAIN-SUFFIX,networking.apple,DIRECT\nDOMAIN-SUFFIX,safebrowsing.apple,DIRECT\n# Apple 自有 IP 段（17.0.0.0/8）：系统对时、推送等直接连 IP 的连接，原本落入兜底走了代理\nIP-CIDR,17.0.0.0/8,DIRECT,no-resolve\n\n\n# ------------------------------------------------------------\n# 3. 政务/公共服务：显式直连，不依赖 China 规则覆盖\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,gov.cn,DIRECT\nDOMAIN-SUFFIX,12377.cn,DIRECT\nDOMAIN-SUFFIX,12333.cn,DIRECT\nDOMAIN-SUFFIX,chinatax.gov.cn,DIRECT\n\n\n# ------------------------------------------------------------\n# 4. 金融/支付（大陆、香港、澳门、新加坡账户）：强制直连\n# 登录 IP 与注册身份一致；汇丰仅香港站。\n# ------------------------------------------------------------\n# PayPal（大陆账户）\nDOMAIN-SUFFIX,paypal.com,DIRECT\nDOMAIN-SUFFIX,paypalobjects.com,DIRECT\nDOMAIN-SUFFIX,paypal.me,DIRECT\nDOMAIN-SUFFIX,paypal-community.com,DIRECT\n# Wise / Payoneer / Airwallex\nDOMAIN-SUFFIX,wise.com,DIRECT\nDOMAIN-SUFFIX,transferwise.com,DIRECT\nDOMAIN-SUFFIX,payoneer.com,DIRECT\nDOMAIN-SUFFIX,airwallex.com,DIRECT\n# Starryblu（新加坡 WoTransfer）\nDOMAIN-SUFFIX,starryblu.com,DIRECT\nDOMAIN-SUFFIX,wotransfer.com,DIRECT\n# 香港 / 澳门银行与钱包\nDOMAIN-SUFFIX,hsbc.com.hk,DIRECT\nDOMAIN-SUFFIX,hangseng.com,DIRECT\nDOMAIN-SUFFIX,za.group,DIRECT\nDOMAIN-SUFFIX,alipayhk.com,DIRECT\nDOMAIN-SUFFIX,antbank.hk,DIRECT\nDOMAIN-SUFFIX,antbank.mo,DIRECT\nDOMAIN-SUFFIX,elebank.com,DIRECT\nDOMAIN-SUFFIX,airstarbank.com,DIRECT\n# 4.3 新增（日志发现走了代理）：长桥证券、众安/汇丰/蚂蚁银行附属域名、熊猫速汇\nDOMAIN-SUFFIX,lbkrs.com,DIRECT\nDOMAIN-SUFFIX,longbridgeapp.com,DIRECT\nDOMAIN-SUFFIX,longbridge.com,DIRECT\nDOMAIN-SUFFIX,longportapp.com,DIRECT\nDOMAIN-SUFFIX,lbctrl.com,DIRECT\nDOMAIN-SUFFIX,zaticdn.com,DIRECT\nDOMAIN-SUFFIX,zajourney.com,DIRECT\nDOMAIN-SUFFIX,zainvest.group,DIRECT\nDOMAIN,hsbc.edge.sdk.awswaf.com,DIRECT\nDOMAIN,c-hsbc.lytics.io,DIRECT\nDOMAIN-SUFFIX,antbankmacau.com,DIRECT\nDOMAIN-SUFFIX,marmot-cloud.com,DIRECT\nDOMAIN,antbank.activity.wbrks.com,DIRECT\nDOMAIN-SUFFIX,pandaremit.com,DIRECT\n# @@EXTRA_DIRECT@@\n\n\n# @@EXTRA_PROXY@@\n# ------------------------------------------------------------\n# 5. OpenAI / ChatGPT / Sora\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,openai.com,PROXY\nDOMAIN-SUFFIX,chatgpt.com,PROXY\nDOMAIN-SUFFIX,chat.com,PROXY\nDOMAIN-SUFFIX,chatgpt.site,PROXY\nDOMAIN-SUFFIX,sora.com,PROXY\nDOMAIN-SUFFIX,oaistatic.com,PROXY\nDOMAIN-SUFFIX,oaiusercontent.com,PROXY\nDOMAIN-SUFFIX,oaistatsig.com,PROXY\nDOMAIN-SUFFIX,openaimerge.com,PROXY\nDOMAIN-SUFFIX,crixet.com,PROXY\nDOMAIN,openaiapi-site.azureedge.net,PROXY\nDOMAIN,openaiassets.blob.core.windows.net,PROXY\nDOMAIN,openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net,PROXY\nDOMAIN,openaicom.imgix.net,PROXY\nDOMAIN,openaicomproductionae4b.blob.core.windows.net,PROXY\nDOMAIN,production-openaicom-storage.azureedge.net,PROXY\nDOMAIN-SUFFIX,livekit.cloud,PROXY\nDOMAIN-KEYWORD,chatgpt-async-webps-prod,PROXY\n# 关键词兜底 + blackmatrix7 规则集自动更新\nDOMAIN-KEYWORD,openai,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/OpenAI/OpenAI.list,PROXY\n\n\n# ------------------------------------------------------------\n# 6. Anthropic / Claude\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,anthropic.com,PROXY\nDOMAIN-SUFFIX,claude.ai,PROXY\nDOMAIN-SUFFIX,claude.com,PROXY\nDOMAIN-SUFFIX,claudeusercontent.com,PROXY\nDOMAIN-SUFFIX,clau.de,PROXY\nDOMAIN-SUFFIX,claudemcpclient.com,PROXY\nDOMAIN-SUFFIX,claudemcpcontent.com,PROXY\nDOMAIN-SUFFIX,claude.dev,PROXY\nDOMAIN,servd-anthropic-website.b-cdn.net,PROXY\n# Claude 用到的第三方：统计（Fathom）、Claude Code 遥测（Datadog）、登录人机验证（Cloudflare）、功能开关（Statsig）、客服（Intercom）\nDOMAIN,cdn.usefathom.com,PROXY\nDOMAIN,http-intake.logs.us5.datadoghq.com,PROXY\nDOMAIN,browser-intake-us5-datadoghq.com,PROXY\nDOMAIN,challenges.cloudflare.com,PROXY\nDOMAIN-SUFFIX,statsig.com,PROXY\nDOMAIN-SUFFIX,statsigapi.net,PROXY\nDOMAIN-SUFFIX,featuregates.org,PROXY\nDOMAIN-SUFFIX,intercom.io,PROXY\nDOMAIN-SUFFIX,intercomcdn.com,PROXY\nIP-CIDR,160.79.104.0/23,PROXY,no-resolve\n# 关键词兜底 + blackmatrix7 规则集自动更新\nDOMAIN-KEYWORD,anthropic,PROXY\nDOMAIN-KEYWORD,claude,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Claude/Claude.list,PROXY\n\n\n# ------------------------------------------------------------\n# 6.1 Microsoft Copilot：明确走代理（到 VPS 后走 VPS 出口，不走住宅）\n# 微软其余服务不变：国内能用的直连，其余走代理。\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,copilot.microsoft.com,PROXY\nDOMAIN-SUFFIX,copilot.com,PROXY\nDOMAIN-SUFFIX,copilot.cloud.microsoft,PROXY\nDOMAIN,sydney.bing.com,PROXY\nDOMAIN,edgeservices.bing.com,PROXY\n\n\n# ------------------------------------------------------------\n# 7. TikTok / 字节系海外\n# 关键词兜住所有含 tiktok 的域名；下面补不含关键词的域名。\n# ------------------------------------------------------------\nDOMAIN-KEYWORD,tiktok,PROXY\nDOMAIN-SUFFIX,tik-tokapi.com,PROXY\nDOMAIN-SUFFIX,bytedapm.com,PROXY\nDOMAIN-SUFFIX,byteoversea.com,PROXY\nDOMAIN-SUFFIX,lemon8-app.com,PROXY\nDOMAIN-SUFFIX,muscdn.com,PROXY\nDOMAIN-SUFFIX,musical.ly,PROXY\nDOMAIN-SUFFIX,ttcdn-us.com,PROXY\nDOMAIN-SUFFIX,ttlivecdn.com,PROXY\nDOMAIN-SUFFIX,ttoverseaus.net,PROXY\nDOMAIN-SUFFIX,ttwstatic.com,PROXY\nDOMAIN,roovza-launches.appsflyersdk.com,PROXY\nDOMAIN,roovza.inapps.appsflyersdk.com,PROXY\nDOMAIN,roovza.launches.appsflyersdk.com,PROXY\nDOMAIN,roovza.skadsdk.appsflyersdk.com,PROXY\n\n\n# ------------------------------------------------------------\n# 8. 美国电商：Amazon / Temu / SHEIN 与国内体系有交集，显式前置\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,amazon.com,PROXY\nDOMAIN-SUFFIX,media-amazon.com,PROXY\nDOMAIN-SUFFIX,ssl-images-amazon.com,PROXY\nDOMAIN-SUFFIX,temu.com,PROXY\nDOMAIN-SUFFIX,shein.com,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Shopify/Shopify.list,PROXY\n\n\n# ------------------------------------------------------------\n# 9. 支付/跨境工作平台（海外主体注册）\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,stripe.com,PROXY\nDOMAIN-SUFFIX,stripe.network,PROXY\nDOMAIN-SUFFIX,stripecdn.com,PROXY\nDOMAIN-SUFFIX,link.com,PROXY\nDOMAIN-SUFFIX,mercury.com,PROXY\nDOMAIN-SUFFIX,deel.com,PROXY\nDOMAIN-SUFFIX,upwork.com,PROXY\nDOMAIN-SUFFIX,fiverr.com,PROXY\nDOMAIN-SUFFIX,paddle.com,PROXY\nDOMAIN-SUFFIX,lemonsqueezy.com,PROXY\nDOMAIN-SUFFIX,revolut.com,PROXY\n\n\n# ------------------------------------------------------------\n# 10. 中国团队的海外产品（RedNote）：China 规则易误判为国内\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,rednote.com,PROXY\nDOMAIN-SUFFIX,rednote.com.my,PROXY\nDOMAIN-SUFFIX,rednotecdn.com,PROXY\n\n\n# ------------------------------------------------------------\n# 10.5 检测网站：browserleaks 被 China_Domain.list 收录为直连，\n# 强制代理以便检测结果反映真实代理出口\n# ------------------------------------------------------------\nDOMAIN-SUFFIX,browserleaks.com,PROXY\nDOMAIN-SUFFIX,browserleaks.net,PROXY\n\n\n# ------------------------------------------------------------\n# 11. 流媒体大站 / Spotify：前置代理，防止 CDN 被 China 规则误直连\n# 住宅还是 VPS 由 VPS 端决定（Spotify 走 VPS，其余走住宅）。\n# ------------------------------------------------------------\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Spotify/Spotify.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Netflix/Netflix.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Disney/Disney.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Hulu/Hulu.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/PrimeVideo/PrimeVideo.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/HBO/HBO.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/ParamountPlus/ParamountPlus.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Peacock/Peacock.list,PROXY\n\n\n# ------------------------------------------------------------\n# 12. Google / YouTube：前置代理（含 google.cn 等中国后缀基础设施）\n# ------------------------------------------------------------\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Google/Google.list,PROXY\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/YouTube/YouTube.list,PROXY\n\n\n# ------------------------------------------------------------\n# 13. 可选广告拦截：默认关闭（可能误拦登录/支付/推送；无 MITM 时效果有限）\n# ------------------------------------------------------------\n# RULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite.list,REJECT\n# DOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite_Domain.list,REJECT\n\n\n# ------------------------------------------------------------\n# 14. 中国大陆域名：直连\n# ------------------------------------------------------------\n# 4.3 新增：日志里发现的国内 App 漏网域名（国内规则集没收录，原本落入兜底走了 VPS）\n# 停车、汽车、收钱吧、DeepSeek、抖音/汽水音乐/抖音支付、中国移动、个推、123云盘等\nDOMAIN-SUFFIX,deepseek.com,DIRECT\nDOMAIN-SUFFIX,deepseeksvc.com,DIRECT\nDOMAIN-SUFFIX,shanghai-parking.com,DIRECT\nDOMAIN-SUFFIX,risingauto.com,DIRECT\nDOMAIN-SUFFIX,rauto.com,DIRECT\nDOMAIN-SUFFIX,saicmotor.com,DIRECT\nDOMAIN-SUFFIX,ebanma.com,DIRECT\nDOMAIN-SUFFIX,shouqianba.com,DIRECT\nDOMAIN-SUFFIX,qishui.com,DIRECT\nDOMAIN-SUFFIX,ecombdimg.com,DIRECT\nDOMAIN-SUFFIX,ecombdstatic.com,DIRECT\nDOMAIN-SUFFIX,ecombdpage.com,DIRECT\nDOMAIN-SUFFIX,bytemaimg.com,DIRECT\nDOMAIN-SUFFIX,bytemastatic.com,DIRECT\nDOMAIN-SUFFIX,huoshanimg.com,DIRECT\nDOMAIN-SUFFIX,byteeffecttos.com,DIRECT\nDOMAIN-SUFFIX,idouyinvod.com,DIRECT\nDOMAIN-SUFFIX,oceanengine.com,DIRECT\nDOMAIN-SUFFIX,doupay.com,DIRECT\nDOMAIN-SUFFIX,meishesdk.com,DIRECT\nDOMAIN-SUFFIX,wasu.tv,DIRECT\nDOMAIN-SUFFIX,cmicapm.com,DIRECT\nDOMAIN-SUFFIX,komect.com,DIRECT\nDOMAIN-SUFFIX,getui.net,DIRECT\nDOMAIN-SUFFIX,123clouddrive.net,DIRECT\nDOMAIN-SUFFIX,alibabachengdun.com,DIRECT\nDOMAIN-SUFFIX,aliapp.org,DIRECT\n\nRULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/China/China.list,DIRECT\nDOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/China/China_Domain.list,DIRECT\n\n\n# ------------------------------------------------------------\n# 15. 域名规则未覆盖时按 IP 判断（no-resolve：不触发本地 DNS 解析）\n# ------------------------------------------------------------\nGEOIP,CN,DIRECT,no-resolve\n\n# 15.1 微信海外服务器（腾讯 AS132203）直连：防止部分微信连接落入兜底走代理，\n# 导致图片发不出、转圈、红色感叹号。放在兜底前，不影响前面按域名分好的流量。\nIP-ASN,132203,DIRECT,no-resolve\n\n\n# ------------------------------------------------------------\n# 16. 兜底\n# ------------------------------------------------------------\nFINAL,PROXY\n"};</script>
+<script>
+const F = SCHEMA.flatMap(s => s.items), $ = id => document.getElementById(id);
+const st = t => $("status").textContent = t;
+function render() {
+  const root = $("form");
+  for (const s of SCHEMA) {
+    const c = document.createElement("div"); c.className = "card"; c.innerHTML = `<h2>${s.sec}</h2>`;
+    if (s.paste) c.innerHTML += `<div class="paste"><b>📋 智能粘贴</b>：把服务商给的那一整串（IP、端口、用户名、密码）直接粘进来，自动拆分到下面各格。<textarea id="pasteBox" placeholder="例：1.2.3.4:48449:user:pass 或 socks5://user:pass@1.2.3.4:48449 或带“IP / 端口 / 用户名 / 密码”字样的多行文字"></textarea><button class="p" onclick="smartPaste()">识别并填入</button> <span id="pasteMsg" style="font-size:13px"></span></div>`;
+    for (const f of s.items) {
+      const r = document.createElement("div"); r.className = "row";
+      let ctl;
+      if (f.opts) ctl = `<select id="${f.k}">${f.opts.map(o => `<option>${o}</option>`).join("")}</select>`;
+      else if (f.area) ctl = `<textarea id="${f.k}" placeholder="每行一个"></textarea>`;
+      else ctl = `<input id="${f.k}" type="${f.secret ? "password" : "text"}" placeholder="${f.ph || (f.gen ? "留空可点「生成」" : "")}" autocomplete="off" spellcheck="false">`;
+      const btns = (f.gen ? `<button onclick="genOne('${f.k}')">生成</button>` : "") + (f.secret ? `<button onclick="toggle('${f.k}',this)">显示</button>` : "");
+      r.innerHTML = `<div class="lab">${f.label}${f.req ? ' <span style="color:var(--err)">*</span>' : ""}<small>${f.k}</small></div><div class="ctl">${ctl}${btns}</div>${f.help ? `<div class="help">${f.help}</div>` : ""}<div class="msg" id="m_${f.k}"></div>`;
+      c.appendChild(r);
+    }
+    root.appendChild(c);
+  }
+  for (const f of F) { $(f.k).value = f.def ?? ""; $(f.k).addEventListener("input", () => check(f)); }
+}
+const val = () => Object.fromEntries(F.map(f => [f.k, $(f.k).value.trim()]));
+function setVals(o) { let n = 0; for (const f of F) if (o[f.k] !== undefined) { $(f.k).value = o[f.k]; n++; } F.forEach(check); return n; }
+function check(f) {
+  const v = $(f.k).value.trim(); let m = "";
+  if (f.req && !v) m = "必填";
+  else if (f.re && v && !new RegExp(f.re).test(v)) m = "格式不对" + (f.ph ? "，" + f.ph : "");
+  else if (f.port && v && (+v < 1 || +v > 65535)) m = "端口范围 1–65535";
+  if (f.k === "BACKUP_WS_PATH" && v && !v.startsWith("/")) m = "要以 / 开头";
+  $(f.k).classList.toggle("bad", !!m); $("m_" + f.k).textContent = m; return !m;
+}
+function crossCheck() {
+  const v = val(), ports = ["PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "BACKUP_PORT"].filter(k => v[k]);
+  const seen = {}; let ok = true;
+  for (const k of ports) { if (seen[v[k]]) { $("m_" + k).textContent = "和 " + seen[v[k]] + " 端口重复"; $(k).classList.add("bad"); ok = false; } else seen[v[k]] = k; }
+  if (!!v.REALITY_PRIVATE_KEY !== !!v.REALITY_PUBLIC_KEY) { $("m_REALITY_PUBLIC_KEY").textContent = "私钥和公钥要成对填写，或都留空后点「生成」"; ok = false; }
+  if (v.RES_ENABLE === "yes") for (const k of ["RES_HOST", "RES_PORT", "RES_USER", "RES_PASS"]) if (!v[k]) { $("m_" + k).textContent = "启用住宅出口时必填（可用上面的智能粘贴）"; $(k).classList.add("bad"); ok = false; }
+  return ok;
+}
+async function genOne(k) {
+  if (k === "REALITY_PRIVATE_KEY") {
+    if ($(k).value && !confirm("重新生成密钥后，所有客户端都要刷新订阅才能连接。确定吗？")) return;
+    try { const p = await CORE.x25519(); $(k).value = p.priv; $("REALITY_PUBLIC_KEY").value = p.pub; }
+    catch (e) { alert("这个浏览器不支持在本地生成密钥（请用新版 Chrome / Safari / Edge）。也可以留空，安装脚本会在服务器上自动生成。"); return; }
+  } else {
+    if ($(k).value && ["CLIENT_UUID", "SUB_ID", "REALITY_SHORT_IDS"].includes(k) && !confirm("更换后客户端需要重新导入或刷新订阅。确定吗？")) return;
+    $(k).value = CORE.gen[F.find(f => f.k === k).gen]();
+  }
+  F.forEach(check); st("已生成：" + k);
+}
+async function fillBlank() { let n = 0; for (const f of F) if (f.gen && !$(f.k).value) { await genOne(f.k); n++; } st(n ? `已为 ${n} 个空白项生成随机值` : "没有需要生成的空白项"); }
+function toggle(k, b) { const i = $(k); i.type = i.type === "password" ? "text" : "password"; b.textContent = i.type === "password" ? "显示" : "隐藏"; }
+function smartPaste() {
+  const r = CORE.parseProxy($("pasteBox").value), n = Object.keys(r).length;
+  setVals(r); if (n) $("RES_ENABLE").value = "yes";
+  $("pasteMsg").textContent = n === 4 ? "✅ 已识别 4 项：地址、端口、用户名、密码" : n ? `⚠️ 只识别出 ${n} 项，请手动补齐剩下的` : "❌ 没认出来，请手动填写";
+  $("pasteMsg").style.color = n === 4 ? "var(--ok)" : "var(--err)";
+}
+function loadText(t) {
+  const o = CORE.parseEnv(t), n = setVals(o), unknown = Object.keys(o).filter(k => !F.some(f => f.k === k));
+  st(n ? `已读入 ${n} 项` + (unknown.length ? `（忽略不认识的 ${unknown.length} 项）` : "") : "没有读到有效内容");
+}
+function openFile() { $("file").click(); }
+$("file").onchange = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => loadText(r.result); r.readAsText(f); e.target.value = ""; };
+function openPaste() { $("dlgTxt").value = ""; $("dlg").showModal(); }
+function ready() { const ok = F.map(check).every(Boolean) & crossCheck(); if (!ok) { st("❌ 有标红的项需要修改"); document.querySelector(".bad")?.scrollIntoView({ block: "center" }); } return ok; }
+function exportEnv() {
+  if (!ready()) return;
+  const v = val(), blob = new Blob([CORE.buildEnv(SCHEMA, v)], { type: "text/plain" }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = (v.PROFILE_NAME || "my") + ".env"; a.click(); URL.revokeObjectURL(a.href);
+  st("✅ 已导出 " + a.download + "，请存到安全的地方");
+}
+async function copyEnv() { if (!ready()) return; await navigator.clipboard.writeText(CORE.buildEnv(SCHEMA, val())); st("✅ 已复制到剪贴板（包含密码，注意粘贴位置）"); }
+render();
+
+const VER = (TPL.clash.match(/rules(\d+\.\d+)/) || [, ""])[1];
+const FN = { clash: `rules${VER}.yaml`, rocket: `myconfig${VER}.conf` };
+function refreshClient() {
+  const v = val(), u = CLIENT.subUrl(v);
+  $("subUrl").textContent = u || "（填好域名、订阅端口、订阅路径、订阅 ID 后显示）";
+  if ($("qr").style.display === "block") $("qr").innerHTML = u ? QR.svg(u, 6) : "";
+  const bad = [...CLIENT.parse(v.EXTRA_DIRECT_DOMAINS).bad, ...CLIENT.parse(v.EXTRA_RES_DOMAINS).bad];
+  $("extraMsg").textContent = bad.length ? "这些追加项格式不对，已跳过：" + bad.join("、") : "";
+  $("verTxt").textContent = "规则版本 " + VER; $("fnC").textContent = FN.clash; $("fnR").textContent = FN.rocket;
+  document.querySelectorAll(".nAuto").forEach(e => e.textContent = v.NAME_AUTO || "DMIT-AUTO");
+}
+function toggleQr(b) { const q = $("qr"), on = q.style.display !== "block"; q.style.display = on ? "block" : "none"; b.textContent = on ? "隐藏二维码" : "二维码"; refreshClient();
+  if (on && !CLIENT.subUrl(val())) q.innerHTML = '<span class="warn">还缺域名或订阅 ID</span>'; }
+async function copySub() { const u = CLIENT.subUrl(val()); if (!u) return st("❌ 还缺域名或订阅 ID"); await navigator.clipboard.writeText(u); st("✅ 订阅地址已复制（相当于密码，注意粘贴位置）"); }
+function dlClient(k) {
+  const v = val(), txt = k === "clash" ? CLIENT.clash(TPL.clash, v) : CLIENT.rocket(TPL.rocket, v);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain" })); a.download = FN[k]; a.click(); URL.revokeObjectURL(a.href);
+  st("✅ 已下载 " + FN[k]);
+}
+document.addEventListener("input", refreshClient);
+const _genOne = genOne; genOne = async k => { await _genOne(k); refreshClient(); };
+const _setVals = setVals; setVals = o => { const n = _setVals(o); refreshClient(); return n; };
+refreshClient();
+</script></body></html>

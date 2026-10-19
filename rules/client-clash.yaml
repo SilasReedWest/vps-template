@@ -1,0 +1,295 @@
+# ============================================================
+# Clash Party 覆写 rules4.3｜人在中国大陆使用（2026-10-18）
+#
+# 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
+# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.3）决定走住宅还是 VPS 出口。
+# 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。
+# 与 iPhone 端 myconfig4.3.conf 同版本、同口径。
+# ============================================================
+
+mode: rule
+
+# 不使用 IPv6。
+ipv6: false
+
+# 进程识别：用于迅雷整体直连。
+find-process-mode: strict
+
+# 域名嗅探：App 直接用 IP 连接时，从 TLS/HTTP/QUIC 中还原域名用于规则匹配。
+# override-destination 保持 false：发往 VPS 的仍是原目标，由 3x-ui 入站嗅探在 VPS 端还原域名。
+# 「嗅探覆写」开关保持关闭，以本文件为准。
+sniffer:
+  enable: true
+  override-destination: false
+  parse-pure-ip: true
+  force-dns-mapping: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - "+.push.apple.com"
+  # Telegram 使用 MTProto 直连 IP，不做嗅探
+  skip-dst-address:
+    - 91.105.192.0/23
+    - 91.108.4.0/22
+    - 91.108.8.0/21
+    - 91.108.16.0/21
+    - 91.108.56.0/22
+    - 95.161.64.0/20
+    - 149.154.160.0/20
+    - 185.76.151.0/24
+
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.home.arpa"
+    - localhost.ptlogin2.qq.com
+    - captive.apple.com
+  nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  # 命中 DIRECT 的连接统一用国内 DNS 解析，保证直连金融类网站「DNS 与出口都在国内」。
+  direct-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  direct-nameserver-follow-policy: false
+  nameserver-policy:
+    "geosite:cn,apple-cn":
+      - 223.5.5.5
+      - 119.29.29.29
+    "geosite:geolocation-!cn":
+      - "https://1.1.1.1/dns-query#PROXY"
+      - "https://8.8.8.8/dns-query#PROXY"
+
+rules:
+  # 广告拦截不启用：category-ads-all 会误拦 OpenAI / TikTok 等服务的统计子域名。
+
+  # 1. 本地和私有网络
+  - GEOSITE,private,DIRECT
+  - GEOIP,private,DIRECT,no-resolve
+
+  # 2. 迅雷：整体直连，不进 VPS（VPS 端屏蔽 BT）
+  - PROCESS-NAME,Thunder,DIRECT
+  - PROCESS-NAME,迅雷,DIRECT
+
+  # 2.1 Claude Mac App 与 Claude Code：按程序整体走代理（域名规则之外再加一道保险）
+  - PROCESS-NAME,Claude,PROXY
+  - PROCESS-NAME,Claude Helper,PROXY
+  - PROCESS-NAME,Claude Helper (Renderer),PROXY
+  - PROCESS-NAME,Claude Helper (GPU),PROXY
+  - PROCESS-NAME,Claude Helper (Plugin),PROXY
+  - PROCESS-NAME,claude,PROXY
+
+  # 3. Apple / iCloud：统一直连（国区 Apple ID）
+  - GEOSITE,apple-cn,DIRECT
+  - DOMAIN-SUFFIX,apple.com,DIRECT
+  - DOMAIN-SUFFIX,apple.com.cn,DIRECT
+  - DOMAIN-SUFFIX,icloud.com,DIRECT
+  - DOMAIN-SUFFIX,icloud.com.cn,DIRECT
+  - DOMAIN-SUFFIX,icloud-content.com,DIRECT
+  - DOMAIN-SUFFIX,apple-cloudkit.com,DIRECT
+  - DOMAIN-SUFFIX,apple-livephotoskit.com,DIRECT
+  - DOMAIN-SUFFIX,cdn-apple.com,DIRECT
+  - DOMAIN-SUFFIX,mzstatic.com,DIRECT
+  - DOMAIN-SUFFIX,itunes.com,DIRECT
+  - DOMAIN-SUFFIX,apzones.com,DIRECT
+  - DOMAIN-SUFFIX,me.com,DIRECT
+  - DOMAIN-SUFFIX,apple-dns.net,DIRECT
+  - DOMAIN-SUFFIX,networking.apple,DIRECT
+  - DOMAIN-SUFFIX,safebrowsing.apple,DIRECT
+  # Apple 自有 IP 段（17.0.0.0/8）：系统对时、推送等直接连 IP 的连接，原本落入兜底走了代理
+  - IP-CIDR,17.0.0.0/8,DIRECT,no-resolve
+
+  # 4. 其他明确直连的国内服务
+  # 4.0 Microsoft Copilot：明确走代理（到 VPS 后走 VPS 出口，不走住宅）
+  # 必须排在 microsoft@cn 前面，否则 copilot.microsoft.com 会被判直连。
+  - PROCESS-NAME,Copilot,PROXY
+  - DOMAIN-SUFFIX,copilot.microsoft.com,PROXY
+  - DOMAIN-SUFFIX,copilot.com,PROXY
+  - DOMAIN-SUFFIX,copilot.cloud.microsoft,PROXY
+  - DOMAIN,sydney.bing.com,PROXY
+  - DOMAIN,edgeservices.bing.com,PROXY
+  - GEOSITE,microsoft@cn,DIRECT
+  - GEOSITE,steam@cn,DIRECT
+  - GEOSITE,bilibili,DIRECT
+
+  # 5. 政务/公共服务
+  - DOMAIN-SUFFIX,gov.cn,DIRECT
+  - DOMAIN-SUFFIX,12377.cn,DIRECT
+  - DOMAIN-SUFFIX,12333.cn,DIRECT
+  - DOMAIN-SUFFIX,chinatax.gov.cn,DIRECT
+
+  # 6. 金融/支付（大陆、香港、澳门、新加坡账户）：强制直连
+  # PayPal（大陆账户）
+  - DOMAIN-SUFFIX,paypal.com,DIRECT
+  - DOMAIN-SUFFIX,paypalobjects.com,DIRECT
+  - DOMAIN-SUFFIX,paypal.me,DIRECT
+  - DOMAIN-SUFFIX,paypal-community.com,DIRECT
+  # Wise / Payoneer / Airwallex
+  - DOMAIN-SUFFIX,wise.com,DIRECT
+  - DOMAIN-SUFFIX,transferwise.com,DIRECT
+  - DOMAIN-SUFFIX,payoneer.com,DIRECT
+  - DOMAIN-SUFFIX,airwallex.com,DIRECT
+  # Starryblu（新加坡 WoTransfer）
+  - DOMAIN-SUFFIX,starryblu.com,DIRECT
+  - DOMAIN-SUFFIX,wotransfer.com,DIRECT
+  # 香港 / 澳门银行与钱包（汇丰仅香港站）
+  - DOMAIN-SUFFIX,hsbc.com.hk,DIRECT
+  - DOMAIN-SUFFIX,hangseng.com,DIRECT
+  - DOMAIN-SUFFIX,za.group,DIRECT
+  - DOMAIN-SUFFIX,alipayhk.com,DIRECT
+  - DOMAIN-SUFFIX,antbank.hk,DIRECT
+  - DOMAIN-SUFFIX,antbank.mo,DIRECT
+  - DOMAIN-SUFFIX,elebank.com,DIRECT
+  - DOMAIN-SUFFIX,airstarbank.com,DIRECT
+  # 4.3 新增（日志发现走了代理）：长桥证券、众安/汇丰/蚂蚁银行附属域名、熊猫速汇
+  - DOMAIN-SUFFIX,lbkrs.com,DIRECT
+  - DOMAIN-SUFFIX,longbridgeapp.com,DIRECT
+  - DOMAIN-SUFFIX,longbridge.com,DIRECT
+  - DOMAIN-SUFFIX,longportapp.com,DIRECT
+  - DOMAIN-SUFFIX,lbctrl.com,DIRECT
+  - DOMAIN-SUFFIX,zaticdn.com,DIRECT
+  - DOMAIN-SUFFIX,zajourney.com,DIRECT
+  - DOMAIN-SUFFIX,zainvest.group,DIRECT
+  - DOMAIN,hsbc.edge.sdk.awswaf.com,DIRECT
+  - DOMAIN,c-hsbc.lytics.io,DIRECT
+  - DOMAIN-SUFFIX,antbankmacau.com,DIRECT
+  - DOMAIN-SUFFIX,marmot-cloud.com,DIRECT
+  - DOMAIN,antbank.activity.wbrks.com,DIRECT
+  - DOMAIN-SUFFIX,pandaremit.com,DIRECT
+  # @@EXTRA_DIRECT@@
+
+  # 7. 海外服务：前置代理（住宅/VPS 由 VPS 端决定）
+  # @@EXTRA_PROXY@@
+  # 7.1 AI：合集 + 关键词兜底
+  - GEOSITE,openai,PROXY
+  - DOMAIN-KEYWORD,openai,PROXY
+  # Claude 全系（网页 / Mac App / Claude Code）：合集 + 显式域名 + 关键词 + 官方 IP 段，宁多勿漏
+  - GEOSITE,anthropic,PROXY
+  - DOMAIN-KEYWORD,anthropic,PROXY
+  - DOMAIN-KEYWORD,claude,PROXY
+  - DOMAIN-SUFFIX,anthropic.com,PROXY
+  - DOMAIN-SUFFIX,claude.ai,PROXY
+  - DOMAIN-SUFFIX,claude.com,PROXY
+  - DOMAIN-SUFFIX,claudeusercontent.com,PROXY
+  - DOMAIN-SUFFIX,clau.de,PROXY
+  - DOMAIN-SUFFIX,claude.dev,PROXY
+  - DOMAIN-SUFFIX,claudemcpclient.com,PROXY
+  - DOMAIN-SUFFIX,claudemcpcontent.com,PROXY
+  # Claude 用到的第三方：统计（Fathom）、Claude Code 遥测（Datadog）、登录人机验证（Cloudflare）、功能开关（Statsig）、客服（Intercom）
+  - DOMAIN,servd-anthropic-website.b-cdn.net,PROXY
+  - DOMAIN,cdn.usefathom.com,PROXY
+  - DOMAIN,http-intake.logs.us5.datadoghq.com,PROXY
+  - DOMAIN,browser-intake-us5-datadoghq.com,PROXY
+  - DOMAIN,challenges.cloudflare.com,PROXY
+  - DOMAIN-SUFFIX,statsig.com,PROXY
+  - DOMAIN-SUFFIX,statsigapi.net,PROXY
+  - DOMAIN-SUFFIX,featuregates.org,PROXY
+  - DOMAIN-SUFFIX,intercom.io,PROXY
+  - DOMAIN-SUFFIX,intercomcdn.com,PROXY
+  - IP-CIDR,160.79.104.0/23,PROXY,no-resolve
+  - GEOSITE,xai,PROXY
+  # 7.2 社交 / 常用
+  - GEOSITE,meta,PROXY
+  - GEOSITE,google,PROXY
+  - GEOSITE,youtube,PROXY
+  - GEOSITE,github,PROXY
+  - GEOSITE,telegram,PROXY
+  - GEOSITE,twitter,PROXY
+  - GEOSITE,discord,PROXY
+  - GEOSITE,reddit,PROXY
+  - GEOSITE,spotify,PROXY
+  # 7.3 流媒体大站
+  - GEOSITE,netflix,PROXY
+  - GEOSITE,disney,PROXY
+  - GEOSITE,primevideo,PROXY
+  - GEOSITE,hbo,PROXY
+  - DOMAIN-SUFFIX,paramountplus.com,PROXY
+  - DOMAIN-SUFFIX,pplusstatic.com,PROXY
+  - DOMAIN-SUFFIX,peacocktv.com,PROXY
+  # 7.4 TikTok / 字节系海外
+  - GEOSITE,tiktok,PROXY
+  - DOMAIN-KEYWORD,tiktok,PROXY
+  - DOMAIN-SUFFIX,byteoversea.com,PROXY
+  - DOMAIN-SUFFIX,lemon8-app.com,PROXY
+  # 7.5 美国电商：Amazon / Temu / SHEIN 与国内体系有交集，显式前置
+  - DOMAIN-SUFFIX,amazon.com,PROXY
+  - DOMAIN-SUFFIX,media-amazon.com,PROXY
+  - DOMAIN-SUFFIX,ssl-images-amazon.com,PROXY
+  - DOMAIN-SUFFIX,temu.com,PROXY
+  - DOMAIN-SUFFIX,shein.com,PROXY
+  - GEOSITE,shopify,PROXY
+  # 7.6 支付/跨境工作平台（海外主体）
+  - GEOSITE,stripe,PROXY
+  - DOMAIN-SUFFIX,mercury.com,PROXY
+  - DOMAIN-SUFFIX,deel.com,PROXY
+  - DOMAIN-SUFFIX,upwork.com,PROXY
+  - DOMAIN-SUFFIX,fiverr.com,PROXY
+  - DOMAIN-SUFFIX,paddle.com,PROXY
+  - DOMAIN-SUFFIX,lemonsqueezy.com,PROXY
+  - DOMAIN-SUFFIX,revolut.com,PROXY
+  # 7.7 中国团队的海外产品
+  - DOMAIN-SUFFIX,rednote.com,PROXY
+  - DOMAIN-SUFFIX,rednote.com.my,PROXY
+  - DOMAIN-SUFFIX,rednotecdn.com,PROXY
+  # 7.8 检测网站：browserleaks 被国内加速列表收录为直连，强制代理以反映真实出口
+  - DOMAIN-SUFFIX,browserleaks.com,PROXY
+  - DOMAIN-SUFFIX,browserleaks.net,PROXY
+
+  # 8. 已知国内域名直连
+  # 4.3 新增：日志里发现的国内 App 漏网域名（国内规则集没收录，原本落入兜底走了 VPS）
+  # 停车、汽车、收钱吧、DeepSeek、抖音/汽水音乐/抖音支付、中国移动、个推、123云盘等
+  - DOMAIN-SUFFIX,deepseek.com,DIRECT
+  - DOMAIN-SUFFIX,deepseeksvc.com,DIRECT
+  - DOMAIN-SUFFIX,shanghai-parking.com,DIRECT
+  - DOMAIN-SUFFIX,risingauto.com,DIRECT
+  - DOMAIN-SUFFIX,rauto.com,DIRECT
+  - DOMAIN-SUFFIX,saicmotor.com,DIRECT
+  - DOMAIN-SUFFIX,ebanma.com,DIRECT
+  - DOMAIN-SUFFIX,shouqianba.com,DIRECT
+  - DOMAIN-SUFFIX,qishui.com,DIRECT
+  - DOMAIN-SUFFIX,ecombdimg.com,DIRECT
+  - DOMAIN-SUFFIX,ecombdstatic.com,DIRECT
+  - DOMAIN-SUFFIX,ecombdpage.com,DIRECT
+  - DOMAIN-SUFFIX,bytemaimg.com,DIRECT
+  - DOMAIN-SUFFIX,bytemastatic.com,DIRECT
+  - DOMAIN-SUFFIX,huoshanimg.com,DIRECT
+  - DOMAIN-SUFFIX,byteeffecttos.com,DIRECT
+  - DOMAIN-SUFFIX,idouyinvod.com,DIRECT
+  - DOMAIN-SUFFIX,oceanengine.com,DIRECT
+  - DOMAIN-SUFFIX,doupay.com,DIRECT
+  - DOMAIN-SUFFIX,meishesdk.com,DIRECT
+  - DOMAIN-SUFFIX,wasu.tv,DIRECT
+  - DOMAIN-SUFFIX,cmicapm.com,DIRECT
+  - DOMAIN-SUFFIX,komect.com,DIRECT
+  - DOMAIN-SUFFIX,getui.net,DIRECT
+  - DOMAIN-SUFFIX,123clouddrive.net,DIRECT
+  - DOMAIN-SUFFIX,alibabachengdun.com,DIRECT
+  - DOMAIN-SUFFIX,aliapp.org,DIRECT
+  - GEOSITE,cn,DIRECT
+
+  # 9. 已知非中国域名代理（放在 GEOIP 前，避免本地解析）
+  - GEOSITE,geolocation-!cn,PROXY
+
+  # 10. 域名规则未覆盖时按 IP 判断（no-resolve：不为匹配规则而触发本地 DNS）
+  - GEOIP,CN,DIRECT,no-resolve
+
+  # 10.1 微信海外服务器：微信大量连接直接连 IP，香港/新加坡等地的腾讯服务器（AS132203）
+  # 不在国内 IP 段，原本会落入 MATCH 走代理，导致图片发不出、转圈、红色感叹号。
+  # 放在兜底前：前面按域名分好的流量（AI、住宅名单等）不受影响。
+  - IP-ASN,132203,DIRECT,no-resolve
+
+  # 11. 兜底
+  - MATCH,PROXY

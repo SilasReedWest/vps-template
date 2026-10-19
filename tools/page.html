@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>个人配置生成器（.env）</title>
+<style>
+:root{--b:#2563eb;--bg:#f6f7f9;--card:#fff;--bd:#e3e6ea;--t:#1f2328;--m:#667085;--err:#d92d20;--ok:#079455}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+header h1{font-size:17px;margin:0 12px 0 0}main{max-width:860px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px}.row{display:grid;grid-template-columns:220px 1fr;gap:6px 14px;padding:8px 0;border-top:1px dashed #eef0f2}
+.row:first-of-type{border-top:0}.lab{font-weight:600;padding-top:6px}.lab small{display:block;font-weight:400;color:var(--m);font-family:ui-monospace,Menlo,monospace;font-size:11px}
+.ctl{display:flex;gap:6px}.ctl input,.ctl select,.ctl textarea{flex:1;min-width:0;padding:7px 10px;border:1px solid #cfd4da;border-radius:8px;font:14px ui-monospace,Menlo,monospace;background:#fff}
+textarea{min-height:70px;resize:vertical}.help{grid-column:2;color:var(--m);font-size:13px;margin-top:-2px}.bad{border-color:var(--err)!important;background:#fff6f5!important}
+.msg{grid-column:2;color:var(--err);font-size:13px}button{border:1px solid #cfd4da;background:#fff;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
+button.p{background:var(--b);border-color:var(--b);color:#fff}button:hover{filter:brightness(.96)}
+.paste{background:#f0f6ff;border:1px solid #cfe0ff;border-radius:10px;padding:10px 12px;margin-bottom:8px}.paste textarea{width:100%;min-height:64px;padding:8px;border:1px solid #cfd4da;border-radius:8px;font:13px ui-monospace,Menlo,monospace}
+#status{margin-left:auto;font-size:13px;color:var(--m)}.tip{background:#fffbea;border:1px solid #f5e3a3;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:16px}
+dialog{border:1px solid var(--bd);border-radius:12px;width:min(720px,92vw)}dialog textarea{width:100%;min-height:260px;font:12.5px ui-monospace,Menlo,monospace}
+.qr{display:none;margin-top:10px;text-align:center}.qr svg{max-width:260px;height:auto;border:1px solid var(--bd);border-radius:8px}
+.url{font:13px ui-monospace,Menlo,monospace;background:#f3f4f6;border-radius:8px;padding:8px 10px;word-break:break-all;flex:1}
+.steps{margin:6px 0 0;padding-left:20px;font-size:13.5px}.warn{color:var(--err);font-size:13px}
+@media(max-width:640px){.row{grid-template-columns:1fr}.help,.msg{grid-column:1}}
+</style></head><body>
+<header><h1>🧩 个人配置生成器</h1>
+<button onclick="openFile()">📂 打开旧文件</button><button onclick="openPaste()">📋 粘贴旧内容</button>
+<button onclick="fillBlank()">✨ 空白项一键生成</button><button class="p" onclick="exportEnv()">⬇️ 导出 .env</button><button onclick="copyEnv()">复制全部</button><button onclick="$('client').scrollIntoView()">📱 客户端</button>
+<span id="status">本页离线运行，内容不会上传到任何地方</span><input type="file" id="file" accept=".env,.txt,text/plain" hidden></header>
+<main><div class="tip">用法：① 第一次使用：填好带 * 的项，其他点「✨ 空白项一键生成」→「⬇️ 导出 .env」。② 以后修改：「📂 打开旧文件」→ 改要改的那一格 → 重新导出。<br>导出的文件包含密码和密钥，只保存在你自己的网盘、U 盘或密码管理器里。</div>
+<div id="form"></div>
+<div class="card" id="client"><h2>📱 客户端：订阅地址 + 分流规则文件</h2>
+<div style="font-size:13.5px;color:var(--m)">根据上面填的内容自动生成。节点从订阅来；规则文件不含任何密码，可以放心保存。</div>
+<div class="row"><div class="lab">订阅地址<small>Clash 和小火箭用同一个</small></div><div class="ctl"><div class="url" id="subUrl">（填好域名、订阅端口、订阅路径、订阅 ID 后显示）</div><button onclick="copySub()">复制</button><button onclick="toggleQr(this)">二维码</button></div>
+<div class="help">和 3x-ui 面板里显示的订阅地址相同。Clash Party 导入时会自动拿到 Clash 格式（含 PROXY 策略组），小火箭拿到普通节点格式。<b>地址和二维码都相当于密码，别截图外发。</b></div>
+<div class="qr" id="qr" style="grid-column:1/-1"></div></div>
+<div class="row"><div class="lab">分流规则文件<small id="verTxt"></small></div><div class="ctl" style="flex-wrap:wrap"><button class="p" onclick="dlClient('clash')">⬇️ Clash 覆写</button><button class="p" onclick="dlClient('rocket')">⬇️ 小火箭配置</button></div>
+<div class="help">已包含「分流名单（追加）」里填的域名：追加直连放在金融直连段；追加住宅在两端走代理，VPS 端走住宅。</div><div class="msg" id="extraMsg"></div></div>
+<div class="row"><div class="lab">怎么用</div><div>
+<b>Mac · Clash Party</b><ol class="steps"><li>「订阅管理」→ 粘贴订阅地址 → 导入。</li><li>「覆写」→ 导入下载的 <code id="fnC"></code> → 绑定到这个订阅并启用（旧版本覆写停用）。</li><li>代理组 PROXY 选 <code class="nAuto"></code>（自动分流，默认就是第一个）。</li></ol>
+<b>iPhone · 小火箭</b><ol class="steps"><li>首页右上角「＋」→ 扫描二维码（或粘贴订阅地址）。</li><li>「配置」→ 导入下载的 <code id="fnR"></code>（用隔空投送或「文件」App）→ 点它 →「使用配置」。</li><li>首页选 <code class="nAuto"></code> 节点（自动分流）。</li></ol></div></div>
+</div></main>
+<dialog id="dlg"><h3 style="margin-top:0">粘贴旧的 .env 内容</h3><textarea id="dlgTxt" placeholder='KEY="value" 格式，整份粘贴进来'></textarea>
+<p style="text-align:right;margin-bottom:0"><button onclick="dlg.close()">取消</button> <button class="p" onclick="loadText(dlgTxt.value);dlg.close()">读入</button></p></dialog>
+<script>/*SCHEMA*/</script><script>/*CORE*/</script><script>/*QR*/</script><script>/*CLIENT*/</script><script>/*TPL*/</script>
+<script>
+const F = SCHEMA.flatMap(s => s.items), $ = id => document.getElementById(id);
+const st = t => $("status").textContent = t;
+function render() {
+  const root = $("form");
+  for (const s of SCHEMA) {
+    const c = document.createElement("div"); c.className = "card"; c.innerHTML = `<h2>${s.sec}</h2>`;
+    if (s.paste) c.innerHTML += `<div class="paste"><b>📋 智能粘贴</b>：把服务商给的那一整串（IP、端口、用户名、密码）直接粘进来，自动拆分到下面各格。<textarea id="pasteBox" placeholder="例：1.2.3.4:48449:user:pass 或 socks5://user:pass@1.2.3.4:48449 或带“IP / 端口 / 用户名 / 密码”字样的多行文字"></textarea><button class="p" onclick="smartPaste()">识别并填入</button> <span id="pasteMsg" style="font-size:13px"></span></div>`;
+    for (const f of s.items) {
+      const r = document.createElement("div"); r.className = "row";
+      let ctl;
+      if (f.opts) ctl = `<select id="${f.k}">${f.opts.map(o => `<option>${o}</option>`).join("")}</select>`;
+      else if (f.area) ctl = `<textarea id="${f.k}" placeholder="每行一个"></textarea>`;
+      else ctl = `<input id="${f.k}" type="${f.secret ? "password" : "text"}" placeholder="${f.ph || (f.gen ? "留空可点「生成」" : "")}" autocomplete="off" spellcheck="false">`;
+      const btns = (f.gen ? `<button onclick="genOne('${f.k}')">生成</button>` : "") + (f.secret ? `<button onclick="toggle('${f.k}',this)">显示</button>` : "");
+      r.innerHTML = `<div class="lab">${f.label}${f.req ? ' <span style="color:var(--err)">*</span>' : ""}<small>${f.k}</small></div><div class="ctl">${ctl}${btns}</div>${f.help ? `<div class="help">${f.help}</div>` : ""}<div class="msg" id="m_${f.k}"></div>`;
+      c.appendChild(r);
+    }
+    root.appendChild(c);
+  }
+  for (const f of F) { $(f.k).value = f.def ?? ""; $(f.k).addEventListener("input", () => check(f)); }
+}
+const val = () => Object.fromEntries(F.map(f => [f.k, $(f.k).value.trim()]));
+function setVals(o) { let n = 0; for (const f of F) if (o[f.k] !== undefined) { $(f.k).value = o[f.k]; n++; } F.forEach(check); return n; }
+function check(f) {
+  const v = $(f.k).value.trim(); let m = "";
+  if (f.req && !v) m = "必填";
+  else if (f.re && v && !new RegExp(f.re).test(v)) m = "格式不对" + (f.ph ? "，" + f.ph : "");
+  else if (f.port && v && (+v < 1 || +v > 65535)) m = "端口范围 1–65535";
+  if (f.k === "BACKUP_WS_PATH" && v && !v.startsWith("/")) m = "要以 / 开头";
+  $(f.k).classList.toggle("bad", !!m); $("m_" + f.k).textContent = m; return !m;
+}
+function crossCheck() {
+  const v = val(), ports = ["PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "BACKUP_PORT"].filter(k => v[k]);
+  const seen = {}; let ok = true;
+  for (const k of ports) { if (seen[v[k]]) { $("m_" + k).textContent = "和 " + seen[v[k]] + " 端口重复"; $(k).classList.add("bad"); ok = false; } else seen[v[k]] = k; }
+  if (!!v.REALITY_PRIVATE_KEY !== !!v.REALITY_PUBLIC_KEY) { $("m_REALITY_PUBLIC_KEY").textContent = "私钥和公钥要成对填写，或都留空后点「生成」"; ok = false; }
+  if (v.RES_ENABLE === "yes") for (const k of ["RES_HOST", "RES_PORT", "RES_USER", "RES_PASS"]) if (!v[k]) { $("m_" + k).textContent = "启用住宅出口时必填（可用上面的智能粘贴）"; $(k).classList.add("bad"); ok = false; }
+  return ok;
+}
+async function genOne(k) {
+  if (k === "REALITY_PRIVATE_KEY") {
+    if ($(k).value && !confirm("重新生成密钥后，所有客户端都要刷新订阅才能连接。确定吗？")) return;
+    try { const p = await CORE.x25519(); $(k).value = p.priv; $("REALITY_PUBLIC_KEY").value = p.pub; }
+    catch (e) { alert("这个浏览器不支持在本地生成密钥（请用新版 Chrome / Safari / Edge）。也可以留空，安装脚本会在服务器上自动生成。"); return; }
+  } else {
+    if ($(k).value && ["CLIENT_UUID", "SUB_ID", "REALITY_SHORT_IDS"].includes(k) && !confirm("更换后客户端需要重新导入或刷新订阅。确定吗？")) return;
+    $(k).value = CORE.gen[F.find(f => f.k === k).gen]();
+  }
+  F.forEach(check); st("已生成：" + k);
+}
+async function fillBlank() { let n = 0; for (const f of F) if (f.gen && !$(f.k).value) { await genOne(f.k); n++; } st(n ? `已为 ${n} 个空白项生成随机值` : "没有需要生成的空白项"); }
+function toggle(k, b) { const i = $(k); i.type = i.type === "password" ? "text" : "password"; b.textContent = i.type === "password" ? "显示" : "隐藏"; }
+function smartPaste() {
+  const r = CORE.parseProxy($("pasteBox").value), n = Object.keys(r).length;
+  setVals(r); if (n) $("RES_ENABLE").value = "yes";
+  $("pasteMsg").textContent = n === 4 ? "✅ 已识别 4 项：地址、端口、用户名、密码" : n ? `⚠️ 只识别出 ${n} 项，请手动补齐剩下的` : "❌ 没认出来，请手动填写";
+  $("pasteMsg").style.color = n === 4 ? "var(--ok)" : "var(--err)";
+}
+function loadText(t) {
+  const o = CORE.parseEnv(t), n = setVals(o), unknown = Object.keys(o).filter(k => !F.some(f => f.k === k));
+  st(n ? `已读入 ${n} 项` + (unknown.length ? `（忽略不认识的 ${unknown.length} 项）` : "") : "没有读到有效内容");
+}
+function openFile() { $("file").click(); }
+$("file").onchange = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => loadText(r.result); r.readAsText(f); e.target.value = ""; };
+function openPaste() { $("dlgTxt").value = ""; $("dlg").showModal(); }
+function ready() { const ok = F.map(check).every(Boolean) & crossCheck(); if (!ok) { st("❌ 有标红的项需要修改"); document.querySelector(".bad")?.scrollIntoView({ block: "center" }); } return ok; }
+function exportEnv() {
+  if (!ready()) return;
+  const v = val(), blob = new Blob([CORE.buildEnv(SCHEMA, v)], { type: "text/plain" }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = (v.PROFILE_NAME || "my") + ".env"; a.click(); URL.revokeObjectURL(a.href);
+  st("✅ 已导出 " + a.download + "，请存到安全的地方");
+}
+async function copyEnv() { if (!ready()) return; await navigator.clipboard.writeText(CORE.buildEnv(SCHEMA, val())); st("✅ 已复制到剪贴板（包含密码，注意粘贴位置）"); }
+render();
+
+const VER = (TPL.clash.match(/rules(\d+\.\d+)/) || [, ""])[1];
+const FN = { clash: `rules${VER}.yaml`, rocket: `myconfig${VER}.conf` };
+function refreshClient() {
+  const v = val(), u = CLIENT.subUrl(v);
+  $("subUrl").textContent = u || "（填好域名、订阅端口、订阅路径、订阅 ID 后显示）";
+  if ($("qr").style.display === "block") $("qr").innerHTML = u ? QR.svg(u, 6) : "";
+  const bad = [...CLIENT.parse(v.EXTRA_DIRECT_DOMAINS).bad, ...CLIENT.parse(v.EXTRA_RES_DOMAINS).bad];
+  $("extraMsg").textContent = bad.length ? "这些追加项格式不对，已跳过：" + bad.join("、") : "";
+  $("verTxt").textContent = "规则版本 " + VER; $("fnC").textContent = FN.clash; $("fnR").textContent = FN.rocket;
+  document.querySelectorAll(".nAuto").forEach(e => e.textContent = v.NAME_AUTO || "DMIT-AUTO");
+}
+function toggleQr(b) { const q = $("qr"), on = q.style.display !== "block"; q.style.display = on ? "block" : "none"; b.textContent = on ? "隐藏二维码" : "二维码"; refreshClient();
+  if (on && !CLIENT.subUrl(val())) q.innerHTML = '<span class="warn">还缺域名或订阅 ID</span>'; }
+async function copySub() { const u = CLIENT.subUrl(val()); if (!u) return st("❌ 还缺域名或订阅 ID"); await navigator.clipboard.writeText(u); st("✅ 订阅地址已复制（相当于密码，注意粘贴位置）"); }
+function dlClient(k) {
+  const v = val(), txt = k === "clash" ? CLIENT.clash(TPL.clash, v) : CLIENT.rocket(TPL.rocket, v);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain" })); a.download = FN[k]; a.click(); URL.revokeObjectURL(a.href);
+  st("✅ 已下载 " + FN[k]);
+}
+document.addEventListener("input", refreshClient);
+const _genOne = genOne; genOne = async k => { await _genOne(k); refreshClient(); };
+const _setVals = setVals; setVals = o => { const n = _setVals(o); refreshClient(); return n; };
+refreshClient();
+</script></body></html>

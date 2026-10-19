@@ -1,0 +1,10 @@
+# 个人信息永远不进仓库
+*.env
+.env*
+!.env.example
+*.db
+*.db-*
+access.log
+vps-deploy-result.txt
+__pycache__/
+.DS_Store

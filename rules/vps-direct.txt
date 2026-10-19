@@ -1,0 +1,4 @@
+# VPS 直连例外（第 8 条规则）：排在住宅名单前，防止被住宅名单误抓
+geosite:google
+geosite:youtube
+domain:aws.amazon.com
