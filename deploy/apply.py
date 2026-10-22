@@ -110,7 +110,7 @@ def slash(p): p = p.strip("/"); return "/" + p + "/" if p else "/"
 
 def xray_template(c, default_tpl, filter_tag):
     t = json.loads(json.dumps(default_tpl))
-    t["log"] = {"access": "./access.log" if c["XRAY_ACCESS_LOG"] == "on" else "none", "dnsLog": False, "error": "", "loglevel": "warning", "maskAddress": ""}
+    t["log"] = {"access": "./access.log" if c["XRAY_ACCESS_LOG"] == "on" else "none", "dnsLog": False, "error": "", "loglevel": "warning", "maskAddress": "full"}
     outs = [
         {"tag": "direct", "protocol": "freedom",
          "settings": {"finalRules": [{"action": "block", "ip": ["geoip:private"]}, {"action": "allow"}]},

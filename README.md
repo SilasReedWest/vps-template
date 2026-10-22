@@ -6,7 +6,7 @@
 
 不懂技术也能用：填表 → 导出 → 粘贴 → 完成。换 IP、换机器、重装系统，客户端都不用动。
 
-[部署攻略](docs/部署攻略.md) · [网页工具](tools/配置生成器.html) · [手动配置参考](docs/手动配置参考-住宅路由规则.md)
+[部署攻略](docs/部署攻略.md) · [日志排查](docs/日志排查.md) · [网页工具](tools/配置生成器.html) · [手动配置参考](docs/手动配置参考-住宅路由规则.md)
 
 </div>
 
@@ -64,13 +64,15 @@
 | `tools/配置生成器.html` | 离线网页工具（单文件，由 `tools/build.py` 合并生成） |
 | `deploy/install.sh` | VPS 一键部署入口 |
 | `deploy/apply.py` | 读取 .env，通过 3x-ui API 写入全部配置 |
-| `deploy/route-summary.py` | 汇总访问日志，检查分流是否正确（需临时打开访问日志） |
+| `deploy/route-check.sh` | 分流检查：确认 AI / X / Reddit 走住宅、Google 走 VPS（需临时打开访问日志） |
 | `rules/vps-residential.txt` | 服务器端「走住宅」名单 |
 | `rules/vps-direct.txt` | 服务器端「先送回 VPS」的例外名单 |
 | `rules/client-clash.yaml` | Clash Party 覆写模板 |
 | `rules/client-shadowrocket.conf` | 小火箭配置模板 |
 | `docs/部署攻略.md` | 从零到完成的图文攻略 |
 | `docs/手动配置参考-住宅路由规则.md` | 不用脚本、手动在面板里配置时的对照表 |
+| `docs/日志排查.md` | 三端日志怎么导出、怎么脱敏、怎么检查分流 |
+| `docs/开发进度.md` | 当前版本、已验证项、待办（接手前先看） |
 
 ## ❓ 常见问题
 

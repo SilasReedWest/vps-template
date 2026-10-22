@@ -1,10 +1,10 @@
 # ============================================================
-# Clash Party 覆写 rules4.3｜人在中国大陆使用（2026-10-18）
+# Clash Party 覆写 rules4.4｜人在中国大陆使用（2026-10-21）
 #
 # 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
 # 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.3）决定走住宅还是 VPS 出口。
 # 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。
-# 与 iPhone 端 myconfig4.3.conf 同版本、同口径。
+# 与 iPhone 端 myconfig4.4.conf 同版本、同口径。
 # ============================================================
 
 mode: rule
@@ -169,6 +169,11 @@ rules:
   - DOMAIN-SUFFIX,marmot-cloud.com,DIRECT
   - DOMAIN,antbank.activity.wbrks.com,DIRECT
   - DOMAIN-SUFFIX,pandaremit.com,DIRECT
+  # 4.4 新增：众安安全组件、汇丰智能客服
+  - DOMAIN-SUFFIX,guardease.com,DIRECT
+  - DOMAIN-SUFFIX,vv1865.com,DIRECT
+  # 第三方通用的反欺诈/客服/统计服务（online-metrix、liveperson、appdynamics、tealium、optimizely 等）
+  # 刻意不加直连：开梯子时保证海外银行、支付、电商看到的都是美国 IP。汇丰若因此出问题，临时关梯子。
   # @@EXTRA_DIRECT@@
 
   # 7. 海外服务：前置代理（住宅/VPS 由 VPS 端决定）
@@ -278,6 +283,19 @@ rules:
   - DOMAIN-SUFFIX,123clouddrive.net,DIRECT
   - DOMAIN-SUFFIX,alibabachengdun.com,DIRECT
   - DOMAIN-SUFFIX,aliapp.org,DIRECT
+  # 4.4 新增：上海图书馆预约后台、微信云托管、深圳通、运营商认证、麦当劳、夸克、字节、网易云信、国内广告统计
+  - DOMAIN-SUFFIX,wxgateway.com,DIRECT
+  - DOMAIN-SUFFIX,qrstuvwxyzab.com,DIRECT
+  - DOMAIN-SUFFIX,shenzhentong.com,DIRECT
+  - DOMAIN-SUFFIX,3gppnetwork.org,DIRECT
+  - DOMAIN-SUFFIX,maiqy.com,DIRECT
+  - DOMAIN-SUFFIX,effirst.com,DIRECT
+  - DOMAIN-SUFFIX,bytecdn.com,DIRECT
+  - DOMAIN-SUFFIX,yunxinfw.com,DIRECT
+  - DOMAIN-SUFFIX,kuiniuca.com,DIRECT
+  - DOMAIN-SUFFIX,xinqiucc.com,DIRECT
+  - DOMAIN-SUFFIX,qiezibenpao.com,DIRECT
+  - DOMAIN-SUFFIX,tianwenca.com,DIRECT
   - GEOSITE,cn,DIRECT
 
   # 9. 已知非中国域名代理（放在 GEOIP 前，避免本地解析）
