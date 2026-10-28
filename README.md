@@ -64,7 +64,7 @@
 | `tools/配置生成器.html` | 离线网页工具（单文件，由 `tools/build.py` 合并生成） |
 | `deploy/install.sh` | VPS 一键部署入口 |
 | `deploy/apply.py` | 读取 .env，通过 3x-ui API 写入全部配置 |
-| `deploy/route-check.sh` | 分流检查：确认 AI / X / Reddit 走住宅、Google 走 VPS（需临时打开访问日志） |
+| `deploy/route-check.sh` | 分流检查：确认 AI / X / Reddit / TikTok 走住宅、Google / Saily 走 VPS（需临时打开访问日志） |
 | `rules/vps-residential.txt` | 服务器端「走住宅」名单 |
 | `rules/vps-direct.txt` | 服务器端「先送回 VPS」的例外名单 |
 | `rules/client-clash.yaml` | Clash Party 覆写模板 |
