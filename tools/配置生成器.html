@@ -57,8 +57,8 @@ const SCHEMA = [
  ]},
  {sec:"域名与 Cloudflare", items:[
   {k:"DOMAIN", label:"你的完整域名（含子域名）", def:"", ph:"例：node.example.xyz", help:"面板、订阅、备用节点都用它。在 Cloudflare 里必须是灰云（仅 DNS）。", re:"^([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$", req:true},
-  {k:"CF_API_TOKEN", label:"Cloudflare API 令牌（可选）", def:"", secret:true, help:"填了：自动改 DNS、申请证书不需要 80 端口。留空：按手册手动改 DNS。"},
-  {k:"ACME_EMAIL", label:"证书通知邮箱（可选）", def:"", ph:"例：you@example.com", help:"证书快过期时 Let's Encrypt 会发邮件提醒。", re:"^$|^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"},
+  {k:"CF_API_TOKEN", label:"Cloudflare API 令牌（可选）", def:"", secret:true, help:"填了：安装时自动把域名指向这台 VPS（换 IP 不用去 Cloudflare 手动改），域名证书改用 DNS 验证。留空：部署前自己在 Cloudflare 加或改一条 A 记录。服务器上不保存它，所以导出的 .env 里这一格是空的。"},
+  {k:"ACME_EMAIL", label:"证书账户邮箱（可选）", def:"", ph:"例：you@example.com", help:"只用来在 Let's Encrypt 登记账户，留空也行（脚本自动续期）。Let's Encrypt 从 2025 年 6 月起已不再发到期提醒邮件。", re:"^$|^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"},
  ]},
  {sec:"面板与订阅（带「生成」按钮的都可以留空，系统会自动生成随机值）", items:[
   {k:"PANEL_PORT", label:"面板端口", def:"8443", help:"浏览器打开面板用的端口，1024–65535。", re:"^\\d{2,5}$", port:true},
