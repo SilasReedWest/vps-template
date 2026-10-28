@@ -4,7 +4,8 @@
 import json, pathlib, subprocess
 T = pathlib.Path(__file__).resolve().parent; R = T.parent
 rd = lambda p: (T / p).read_text(encoding="utf-8") if not str(p).startswith("/") else pathlib.Path(p).read_text(encoding="utf-8")
-tpl = {"clash": (R / "rules/client-clash.yaml").read_text(encoding="utf-8"), "rocket": (R / "rules/client-shadowrocket.conf").read_text(encoding="utf-8")}
+tpl = {"clash": (R / "rules/client-clash.yaml").read_text(encoding="utf-8"), "rocket": (R / "rules/client-shadowrocket.conf").read_text(encoding="utf-8"),
+       "wechatIps": [l.strip() for l in (R / "rules/wechat-as132203-v4.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]}
 html = rd("page.html")
 for mark, body in {"/*SCHEMA*/": rd("schema.js"), "/*CORE*/": rd("core.js"), "/*QR*/": rd("qr.js"), "/*CLIENT*/": rd("client.js"),
                    "/*TPL*/": "const TPL = " + json.dumps(tpl, ensure_ascii=False).replace("</", "<\\/") + ";"}.items():

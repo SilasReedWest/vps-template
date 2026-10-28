@@ -1,5 +1,6 @@
 # ============================================================
-# Clash Party 覆写 rules4.6｜人在中国大陆使用（2026-10-29）
+# Clash 覆写 rules4.6｜人在中国大陆使用（2026-10-29）
+# 通用：Clash Party、Clash Verge Rev（Mac / Windows 都能用，内核都是 Mihomo）
 #
 # 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
 # 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.6）决定走住宅还是 VPS 出口。
@@ -83,14 +84,17 @@ rules:
   # 2. 迅雷：整体直连，不进 VPS（VPS 端屏蔽 BT）
   - PROCESS-NAME,Thunder,DIRECT
   - PROCESS-NAME,迅雷,DIRECT
+  - PROCESS-NAME,Thunder.exe,DIRECT
 
-  # 2.1 Claude Mac App 与 Claude Code：按程序整体走代理（域名规则之外再加一道保险）
+  # 2.1 Claude 桌面 App 与 Claude Code（Mac / Windows）：按程序整体走代理（域名规则之外再加一道保险）
   - PROCESS-NAME,Claude,PROXY
   - PROCESS-NAME,Claude Helper,PROXY
   - PROCESS-NAME,Claude Helper (Renderer),PROXY
   - PROCESS-NAME,Claude Helper (GPU),PROXY
   - PROCESS-NAME,Claude Helper (Plugin),PROXY
   - PROCESS-NAME,claude,PROXY
+  - PROCESS-NAME,Claude.exe,PROXY
+  - PROCESS-NAME,claude.exe,PROXY
 
   # 3. Apple / iCloud：统一直连（国区 Apple ID）
   - GEOSITE,apple-cn,DIRECT
@@ -116,6 +120,7 @@ rules:
   # 4.0 Microsoft Copilot：明确走代理（到 VPS 后走 VPS 出口，不走住宅）
   # 必须排在 microsoft@cn 前面，否则 copilot.microsoft.com 会被判直连。
   - PROCESS-NAME,Copilot,PROXY
+  - PROCESS-NAME,Copilot.exe,PROXY
   - DOMAIN-SUFFIX,copilot.microsoft.com,PROXY
   - DOMAIN-SUFFIX,copilot.com,PROXY
   - DOMAIN-SUFFIX,copilot.cloud.microsoft,PROXY

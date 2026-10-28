@@ -41,3 +41,29 @@ const CLIENT = (() => {
   return { subUrl, parse, clash, rocket };
 })();
 if (typeof module !== "undefined") module.exports = CLIENT;
+
+// v2rayN（Windows，Xray 内核）：把填好的 Clash 规则逐条翻译成 v2rayN「路由规则集」JSON，顺序不变（先匹配先生效）
+// 不支持的：PROCESS-NAME（按程序名，跳过）；IP-ASN 用整理好的 IP 段代替。
+CLIENT.v2rayn = (clashText, wechatIps) => {
+  const rules = []; let cur = null, sec = "", skipped = 0;
+  const add = (out, kind, val) => {
+    if (!cur || cur.outboundTag !== out || !cur[kind] || cur._sec !== sec) { cur = { remarks: sec || "规则", outboundTag: out, [kind]: [] }; cur._sec = sec; rules.push(cur); }
+    cur[kind].push(val);
+  };
+  for (const raw of String(clashText).split("\n")) {
+    const h = raw.match(/^\s*#\s*(\d+(?:\.\d+)?\.?\s+.+)$/); if (h) { sec = h[1].replace(/[：:（(].*$/, "").trim().slice(0, 40); continue; }
+    const m = raw.match(/^\s*-\s*([A-Z-]+),([^,#]+?)(?:,([A-Z]+))?(?:,no-resolve)?\s*$/); if (!m) continue;
+    const [, t, x, p] = m, out = (t === "MATCH" ? x : p) === "DIRECT" ? "direct" : (t === "MATCH" ? x : p) === "REJECT" ? "block" : "proxy";
+    if (t === "DOMAIN-SUFFIX") add(out, "domain", "domain:" + x);
+    else if (t === "DOMAIN") add(out, "domain", "full:" + x);
+    else if (t === "DOMAIN-KEYWORD") add(out, "domain", x);
+    else if (t === "GEOSITE") add(out, "domain", "geosite:" + x);
+    else if (t === "GEOIP") add(out, "ip", "geoip:" + x.toLowerCase());
+    else if (t === "IP-CIDR") add(out, "ip", x);
+    else if (t === "IP-ASN" && x === "132203") { sec = "微信海外服务器（AS132203）"; for (const i of wechatIps || []) add(out, "ip", i); }
+    else if (t === "MATCH") { rules.push({ remarks: "兜底：其余全部走代理", outboundTag: out, port: "0-65535" }); cur = null; }
+    else skipped++;
+  }
+  rules.forEach(r => delete r._sec);
+  return JSON.stringify(rules, null, 2) + "\n";
+};

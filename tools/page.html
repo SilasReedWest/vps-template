@@ -32,10 +32,12 @@ dialog{border:1px solid var(--bd);border-radius:12px;width:min(720px,92vw)}dialo
 <div class="row"><div class="lab">订阅地址<small>Clash 和小火箭用同一个</small></div><div class="ctl"><div class="url" id="subUrl">（填好域名、订阅端口、订阅路径、订阅 ID 后显示）</div><button onclick="copySub()">复制</button><button onclick="toggleQr(this)">二维码</button></div>
 <div class="help">和 3x-ui 面板里显示的订阅地址相同。Clash Party 导入时会自动拿到 Clash 格式（含 PROXY 策略组），小火箭拿到普通节点格式。<b>地址和二维码都相当于密码，别截图外发。</b></div>
 <div class="qr" id="qr" style="grid-column:1/-1"></div></div>
-<div class="row"><div class="lab">分流规则文件<small id="verTxt"></small></div><div class="ctl" style="flex-wrap:wrap"><button class="p" onclick="dlClient('clash')">⬇️ Clash 覆写</button><button class="p" onclick="dlClient('rocket')">⬇️ 小火箭配置</button></div>
+<div class="row"><div class="lab">分流规则文件<small id="verTxt"></small></div><div class="ctl" style="flex-wrap:wrap"><button class="p" onclick="dlClient('clash')">⬇️ Clash 覆写</button><button class="p" onclick="dlClient('rocket')">⬇️ 小火箭配置</button><button class="p" onclick="dlClient('v2rayn')">⬇️ v2rayN 路由（Windows）</button></div>
 <div class="help">已包含「分流名单（追加）」里填的域名：追加直连放在金融直连段；追加住宅在两端走代理，VPS 端走住宅。</div><div class="msg" id="extraMsg"></div></div>
 <div class="row"><div class="lab">怎么用</div><div>
 <b>Mac · Clash Party</b><ol class="steps"><li>「订阅管理」→ 粘贴订阅地址 → 导入。</li><li>「覆写」→ 导入下载的 <code id="fnC"></code> → 绑定到这个订阅并启用（旧版本覆写停用）。</li><li>代理组 PROXY 选 <code class="nAuto"></code>（自动分流，默认就是第一个）。</li></ol>
+<b>Mac / Windows · Clash Verge Rev</b><ol class="steps"><li>「订阅」→ 粘贴订阅地址 → 导入。</li><li>右键这个订阅 →「扩展覆写配置」→ 把 <code id="fnC2"></code> 的全部内容粘进去 → 保存（和 Clash Party 用同一个文件）。</li><li>「代理」页：模式选「规则」，PROXY 组选 <code class="nAuto"></code>；「设置」里打开 TUN 模式，IPv6 关闭。</li></ol>
+<b>Windows · v2rayN</b><ol class="steps"><li>「订阅分组」→「订阅分组设置」→ 添加 → 粘贴订阅地址 → 确定 → 「更新全部订阅」。</li><li>「设置」→「路由设置」→ 添加 → 别名随便写 →「导入规则」→ 选下载的 <code id="fnV"></code> → 确定；回到列表选中它 →「设为活动路由」；「域名解析策略」选 <b>AsIs</b>。</li><li>选中 <code class="nAuto"></code> 节点 → 设为活动服务器；底部「系统代理」选「自动配置系统代理」，需要时打开 TUN。</li></ol>
 <b>iPhone · 小火箭</b><ol class="steps"><li>首页右上角「＋」→ 扫描二维码（或粘贴订阅地址）。</li><li>「配置」→ 导入下载的 <code id="fnR"></code>（用隔空投送或「文件」App）→ 点它 →「使用配置」。</li><li>首页选 <code class="nAuto"></code> 节点（自动分流）。</li></ol></div></div>
 </div></main>
 <dialog id="dlg"><h3 style="margin-top:0">粘贴旧的 .env 内容</h3><textarea id="dlgTxt" placeholder='KEY="value" 格式，整份粘贴进来'></textarea>
@@ -118,21 +120,21 @@ async function copyEnv() { if (!ready()) return; await navigator.clipboard.write
 render();
 
 const VER = (TPL.clash.match(/rules(\d+\.\d+)/) || [, ""])[1];
-const FN = { clash: `rules${VER}.yaml`, rocket: `myconfig${VER}.conf` };
+const FN = { clash: `rules${VER}.yaml`, rocket: `myconfig${VER}.conf`, v2rayn: `v2rayN-routing${VER}.json` };
 function refreshClient() {
   const v = val(), u = CLIENT.subUrl(v);
   $("subUrl").textContent = u || "（填好域名、订阅端口、订阅路径、订阅 ID 后显示）";
   if ($("qr").style.display === "block") $("qr").innerHTML = u ? QR.svg(u, 6) : "";
   const bad = [...CLIENT.parse(v.EXTRA_DIRECT_DOMAINS).bad, ...CLIENT.parse(v.EXTRA_RES_DOMAINS).bad];
   $("extraMsg").textContent = bad.length ? "这些追加项格式不对，已跳过：" + bad.join("、") : "";
-  $("verTxt").textContent = "规则版本 " + VER; $("fnC").textContent = FN.clash; $("fnR").textContent = FN.rocket;
+  $("verTxt").textContent = "规则版本 " + VER; $("fnC").textContent = FN.clash; $("fnR").textContent = FN.rocket; $("fnC2").textContent = FN.clash; $("fnV").textContent = FN.v2rayn;
   document.querySelectorAll(".nAuto").forEach(e => e.textContent = v.NAME_AUTO || "DMIT-AUTO");
 }
 function toggleQr(b) { const q = $("qr"), on = q.style.display !== "block"; q.style.display = on ? "block" : "none"; b.textContent = on ? "隐藏二维码" : "二维码"; refreshClient();
   if (on && !CLIENT.subUrl(val())) q.innerHTML = '<span class="warn">还缺域名或订阅 ID</span>'; }
 async function copySub() { const u = CLIENT.subUrl(val()); if (!u) return st("❌ 还缺域名或订阅 ID"); await navigator.clipboard.writeText(u); st("✅ 订阅地址已复制（相当于密码，注意粘贴位置）"); }
 function dlClient(k) {
-  const v = val(), txt = k === "clash" ? CLIENT.clash(TPL.clash, v) : CLIENT.rocket(TPL.rocket, v);
+  const v = val(), txt = k === "clash" ? CLIENT.clash(TPL.clash, v) : k === "v2rayn" ? CLIENT.v2rayn(CLIENT.clash(TPL.clash, v), TPL.wechatIps) : CLIENT.rocket(TPL.rocket, v);
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain" })); a.download = FN[k]; a.click(); URL.revokeObjectURL(a.href);
   st("✅ 已下载 " + FN[k]);
 }
