@@ -1,10 +1,10 @@
 # ============================================================
-# Clash Party 覆写 rules4.5｜人在中国大陆使用（2026-10-29）
+# Clash Party 覆写 rules4.6｜人在中国大陆使用（2026-10-29）
 #
 # 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
-# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.5）决定走住宅还是 VPS 出口。
+# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.6）决定走住宅还是 VPS 出口。
 # 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。
-# 与 iPhone 端 myconfig4.5.conf 同版本、同口径。
+# 与 iPhone 端 myconfig4.6.conf 同版本、同口径。
 # ============================================================
 
 mode: rule
@@ -170,6 +170,9 @@ rules:
   - DOMAIN-SUFFIX,vv1865.com,DIRECT
   # 第三方通用的反欺诈/客服/统计服务（online-metrix、liveperson、appdynamics、tealium、optimizely 等）
   # 刻意不加直连：开梯子时保证海外银行、支付、电商看到的都是美国 IP。汇丰若因此出问题，临时关梯子。
+  # 4.6：Tealium 的脚本 CDN（汇丰香港 App 在用）被手机端的国内大列表收录；两端都写显式代理，维持上面的决定
+  - DOMAIN-SUFFIX,tiqcdn.com,PROXY
+  - DOMAIN-SUFFIX,tealiumiq.com,PROXY
   # @@EXTRA_DIRECT@@
 
   # 7. 海外服务：前置代理（住宅/VPS 由 VPS 端决定）
@@ -226,6 +229,8 @@ rules:
   - DOMAIN-SUFFIX,grok-sandbox.com,PROXY
   - DOMAIN-SUFFIX,socure.io,PROXY
   - DOMAIN,o30969.ingest.us.sentry.io,PROXY
+  # 4.6 新增：X 的反欺诈（Sardine）
+  - DOMAIN-SUFFIX,sardine.ai,PROXY
   # 7.2 社交 / 常用
   - GEOSITE,meta,PROXY
   - GEOSITE,google,PROXY
@@ -269,6 +274,16 @@ rules:
   - DOMAIN-SUFFIX,paypal.cn,PROXY
   - DOMAIN-SUFFIX,braintreegateway.com,PROXY
   - DOMAIN-SUFFIX,braintree-api.com,PROXY
+  # 4.6 新增：PayPal App 配套（Statsig 功能开关、风控、反机器人、App 安全检测）
+  - DOMAIN-SUFFIX,featureassets.org,PROXY
+  - DOMAIN-SUFFIX,prodregistryv2.org,PROXY
+  - DOMAIN-SUFFIX,dyneti.com,PROXY
+  - DOMAIN-SUFFIX,datadome.co,PROXY
+  - DOMAIN-SUFFIX,securetheorem.com,PROXY
+  # 4.6 新增：HUMAN（PerimeterX）人机验证（ChatGPT、Stripe、Walmart 在用）
+  - DOMAIN-SUFFIX,px-cloud.net,PROXY
+  - DOMAIN-SUFFIX,px-cdn.net,PROXY
+  - DOMAIN-SUFFIX,perimeterx.net,PROXY
   - DOMAIN-SUFFIX,mercury.com,PROXY
   - DOMAIN-SUFFIX,deel.com,PROXY
   - DOMAIN-SUFFIX,upwork.com,PROXY

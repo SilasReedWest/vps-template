@@ -59,6 +59,8 @@ domain:grokipedia.com
 domain:grok-sandbox.com
 domain:socure.io
 full:o30969.ingest.us.sentry.io
+# X 的反欺诈（Sardine）
+domain:sardine.ai
 geosite:tiktok
 domain:byteoversea.com
 domain:lemon8-app.com
@@ -100,6 +102,16 @@ domain:paypal-community.com
 domain:paypal.cn
 domain:braintreegateway.com
 domain:braintree-api.com
+# PayPal App 配套：Statsig 功能开关、Dyneti 风控、DataDome 反机器人、Data Theorem App 安全检测
+domain:featureassets.org
+domain:prodregistryv2.org
+domain:dyneti.com
+domain:datadome.co
+domain:securetheorem.com
+# HUMAN（PerimeterX）人机验证：ChatGPT、Stripe、Walmart 在用
+domain:px-cloud.net
+domain:px-cdn.net
+domain:perimeterx.net
 domain:mercury.com
 domain:deel.com
 domain:upwork.com

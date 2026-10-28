@@ -3,6 +3,10 @@ const SCHEMA = [
  {sec:"基本信息", items:[
   {k:"PROFILE_NAME", label:"这套配置的名字", def:"DMIT-LA", help:"随便起，方便区分多台机器，例如 DMIT-LA。只用字母、数字、横线。", re:"^[A-Za-z0-9-]+$"},
  ]},
+ {sec:"服务器登录（SSH）", items:[
+  {k:"SSH_LOGIN", label:"登录方式", def:"password", opts:["password","key"], help:"password = 保持服务商给的 root + 密码登录（简单，适合新手）。key = 只允许密钥登录、关闭密码登录（更安全，别人猜不到密码；需要先在 Termius 或电脑上生成一对密钥，见《部署攻略》）。"},
+  {k:"SSH_PUBKEY", label:"SSH 公钥（选 key 时填）", def:"", ph:"ssh-ed25519 AAAA…（公钥，不是私钥）", help:"只填「公钥」那一行（以 ssh-ed25519 或 ssh-rsa 开头）。私钥留在你自己的设备上，任何时候都不要贴到这里或发给别人。服务器上已经有公钥的可以留空。", re:"^$|^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com) [A-Za-z0-9+/]+={0,3}( [^\\n]*)?$"},
+ ]},
  {sec:"版本（默认就是验证过的稳定组合，不懂就别改）", items:[
   {k:"XUI_VERSION", label:"3x-ui 面板版本", def:"v3.10.2", help:"固定版本。升级前必须先在测试机上验证。", re:"^v\\d+\\.\\d+\\.\\d+$"},
   {k:"XRAY_VERSION", label:"Xray 内核版本", def:"v26.6.27", help:"不要升到 v26.9 及以后：小火箭默认指纹会连不上。", re:"^v\\d+\\.\\d+\\.\\d+$"},
@@ -34,7 +38,7 @@ const SCHEMA = [
  {sec:"Reality 主节点", items:[
   {k:"REALITY_PORT", label:"Reality 端口", def:"443", re:"^\\d{2,5}$", port:true},
   {k:"REALITY_MODE", label:"伪装模式", def:"external", opts:["external"], help:"external = 伪装成扫描到的外部网站 + 本机过滤（DMIT 整改方案）。"},
-  {k:"REALITY_TARGET", label:"伪装目标网站", def:"xyfu.me", help:"失效时在面板里重新扫描一个，只改这里。只填域名，不要 https:// 和端口。", re:"^([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"},
+  {k:"REALITY_TARGET", label:"伪装目标网站", def:"", ph:"留空 = 安装时自动挑选", help:"建议留空：安装脚本会扫描 VPS 附近（同一网段）的网站，自动挑一个延迟低、支持 TLS 1.3 和 HTTP/2、证书正规的。挑好后会在结尾提示你补回 .env。以后失效了：把这一格清空重新运行安装即可。也可以手动填，只填域名，不要 https:// 和端口。", re:"^$|^([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"},
   {k:"REALITY_FILTER_PORT", label:"过滤入口端口（本机）", def:"4431", re:"^\\d{2,5}$", port:true, help:"DMIT 防滥用整改用，只监听本机。"},
   {k:"REALITY_PRIVATE_KEY", label:"Reality 私钥", def:"", gen:"x25519", secret:true, help:"点「生成」会同时生成私钥和公钥。沿用旧的，客户端只需刷新订阅。"},
   {k:"REALITY_PUBLIC_KEY", label:"Reality 公钥", def:"", help:"和私钥成对，不要单独改。"},
@@ -59,6 +63,7 @@ const SCHEMA = [
  ]},
  {sec:"其他", items:[
   {k:"XRAY_ACCESS_LOG", label:"服务器访问日志", def:"none", opts:["none","on"], help:"none = 不记录你访问过的网站（推荐）；on = 记录，排查问题时临时打开。"},
+  {k:"BACKUP_DAYS", label:"每日自动备份保留天数（0=关闭）", def:"7", re:"^\\d{1,3}$", help:"每天凌晨在服务器本机备份一次面板数据库、证书和 .env，保留最近 N 天，放在 /var/backups/vps-template/（只有 root 能读）。防的是面板里误操作、升级出错；VPS 整台没了它也没了，所以 .env 还是要自己保管好。"},
  ]},
 ];
 if (typeof module!=="undefined") module.exports={SCHEMA};

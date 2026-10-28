@@ -170,11 +170,13 @@ def main():
     if len(sys.argv) < 2: die("用法：python3 apply.py /root/你的配置.env")
     c = load_cfg(sys.argv[1]); ok(".env 检查通过")
     if "--check" in sys.argv:
-        for k in ("DOMAIN", "PANEL_PORT", "PANEL_PATH", "PANEL_USER", "PANEL_PASS", "XUI_VERSION", "CF_API_TOKEN", "ACME_EMAIL"):
+        for k in ("DOMAIN", "PANEL_PORT", "PANEL_PATH", "PANEL_USER", "PANEL_PASS", "XUI_VERSION", "CF_API_TOKEN", "ACME_EMAIL",
+                  "REALITY_TARGET", "SSH_LOGIN", "SSH_PUBKEY", "BACKUP_DAYS"):
             print(f"CFG_{k}={shlex.quote(c[k])}")
         return
     base = os.environ.get("XUI_API_BASE") or f'https://127.0.0.1:{c["PANEL_PORT"]}{slash(c["PANEL_PATH"])}panel/api'
     token = os.environ.get("XUI_API_TOKEN") or die("缺少面板 API 令牌（安装脚本会自动获取）")
+    if not c["REALITY_TARGET"]: die("伪装目标网站（REALITY_TARGET）为空：用安装脚本运行会自动挑选，或在 .env 里手动填一个")
     cert = os.environ.get("XUI_CERT", f'/root/cert/{c["DOMAIN"]}/fullchain.pem'); key = os.environ.get("XUI_KEY", f'/root/cert/{c["DOMAIN"]}/privkey.pem')
     api = API(base, token)
     filled = gen_missing(c)
