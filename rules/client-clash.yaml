@@ -1,10 +1,10 @@
 # ============================================================
-# Clash Party 覆写 rules4.4｜人在中国大陆使用（2026-10-21）
+# Clash Party 覆写 rules4.5｜人在中国大陆使用（2026-10-29）
 #
 # 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
-# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.3）决定走住宅还是 VPS 出口。
+# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.5）决定走住宅还是 VPS 出口。
 # 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。
-# 与 iPhone 端 myconfig4.4.conf 同版本、同口径。
+# 与 iPhone 端 myconfig4.5.conf 同版本、同口径。
 # ============================================================
 
 mode: rule
@@ -132,11 +132,7 @@ rules:
   - DOMAIN-SUFFIX,chinatax.gov.cn,DIRECT
 
   # 6. 金融/支付（大陆、香港、澳门、新加坡账户）：强制直连
-  # PayPal（大陆账户）
-  - DOMAIN-SUFFIX,paypal.com,DIRECT
-  - DOMAIN-SUFFIX,paypalobjects.com,DIRECT
-  - DOMAIN-SUFFIX,paypal.me,DIRECT
-  - DOMAIN-SUFFIX,paypal-community.com,DIRECT
+  # PayPal：4.5 起改为走代理 + 住宅（见 7.6）
   # Wise / Payoneer / Airwallex
   - DOMAIN-SUFFIX,wise.com,DIRECT
   - DOMAIN-SUFFIX,transferwise.com,DIRECT
@@ -181,6 +177,18 @@ rules:
   # 7.1 AI：合集 + 关键词兜底
   - GEOSITE,openai,PROXY
   - DOMAIN-KEYWORD,openai,PROXY
+  # 4.5 新增：OpenAI 显式域名（与 iPhone 一致，不只依赖合集）
+  - DOMAIN-SUFFIX,chatgpt.com,PROXY
+  - DOMAIN-SUFFIX,chat.com,PROXY
+  - DOMAIN-SUFFIX,chatgpt.site,PROXY
+  - DOMAIN-SUFFIX,sora.com,PROXY
+  - DOMAIN-SUFFIX,oaistatic.com,PROXY
+  - DOMAIN-SUFFIX,oaiusercontent.com,PROXY
+  - DOMAIN-SUFFIX,oaistatsig.com,PROXY
+  - DOMAIN-SUFFIX,crixet.com,PROXY
+  - DOMAIN-SUFFIX,livekit.cloud,PROXY
+  - DOMAIN-KEYWORD,chatgpt-async-webps-prod,PROXY
+  - DOMAIN,o33249.ingest.us.sentry.io,PROXY
   # Claude 全系（网页 / Mac App / Claude Code）：合集 + 显式域名 + 关键词 + 官方 IP 段，宁多勿漏
   - GEOSITE,anthropic,PROXY
   - DOMAIN-KEYWORD,anthropic,PROXY
@@ -198,14 +206,26 @@ rules:
   - DOMAIN,cdn.usefathom.com,PROXY
   - DOMAIN,http-intake.logs.us5.datadoghq.com,PROXY
   - DOMAIN,browser-intake-us5-datadoghq.com,PROXY
-  - DOMAIN,challenges.cloudflare.com,PROXY
+  - DOMAIN-SUFFIX,challenges.cloudflare.com,PROXY
   - DOMAIN-SUFFIX,statsig.com,PROXY
   - DOMAIN-SUFFIX,statsigapi.net,PROXY
   - DOMAIN-SUFFIX,featuregates.org,PROXY
   - DOMAIN-SUFFIX,intercom.io,PROXY
   - DOMAIN-SUFFIX,intercomcdn.com,PROXY
+  # 4.5 新增：Anthropic 新域名、Intercom 素材、hCaptcha（Stripe 付款验证）、Claude 桌面版错误上报
+  - DOMAIN-SUFFIX,ant.dev,PROXY
+  - DOMAIN-SUFFIX,antspace.dev,PROXY
+  - DOMAIN-SUFFIX,intercom.com,PROXY
+  - DOMAIN-SUFFIX,intercomassets.com,PROXY
+  - DOMAIN-SUFFIX,hcaptcha.com,PROXY
+  - DOMAIN,o1158394.ingest.us.sentry.io,PROXY
   - IP-CIDR,160.79.104.0/23,PROXY,no-resolve
   - GEOSITE,xai,PROXY
+  # 4.5 新增：Grok 新域名、X 身份验证（Socure）、X/Grok App 错误上报
+  - DOMAIN-SUFFIX,grokipedia.com,PROXY
+  - DOMAIN-SUFFIX,grok-sandbox.com,PROXY
+  - DOMAIN-SUFFIX,socure.io,PROXY
+  - DOMAIN,o30969.ingest.us.sentry.io,PROXY
   # 7.2 社交 / 常用
   - GEOSITE,meta,PROXY
   - GEOSITE,google,PROXY
@@ -228,6 +248,8 @@ rules:
   - GEOSITE,tiktok,PROXY
   - DOMAIN-KEYWORD,tiktok,PROXY
   - DOMAIN-SUFFIX,byteoversea.com,PROXY
+  - DOMAIN-SUFFIX,ibyteimg.com,PROXY
+  - DOMAIN-SUFFIX,ibytedtos.com,PROXY
   - DOMAIN-SUFFIX,lemon8-app.com,PROXY
   # 7.5 美国电商：Amazon / Temu / SHEIN 与国内体系有交集，显式前置
   - DOMAIN-SUFFIX,amazon.com,PROXY
@@ -238,6 +260,15 @@ rules:
   - GEOSITE,shopify,PROXY
   # 7.6 支付/跨境工作平台（海外主体）
   - GEOSITE,stripe,PROXY
+  # PayPal（4.5 改为全部走美区住宅）
+  - GEOSITE,paypal,PROXY
+  - DOMAIN-SUFFIX,paypal.com,PROXY
+  - DOMAIN-SUFFIX,paypalobjects.com,PROXY
+  - DOMAIN-SUFFIX,paypal.me,PROXY
+  - DOMAIN-SUFFIX,paypal-community.com,PROXY
+  - DOMAIN-SUFFIX,paypal.cn,PROXY
+  - DOMAIN-SUFFIX,braintreegateway.com,PROXY
+  - DOMAIN-SUFFIX,braintree-api.com,PROXY
   - DOMAIN-SUFFIX,mercury.com,PROXY
   - DOMAIN-SUFFIX,deel.com,PROXY
   - DOMAIN-SUFFIX,upwork.com,PROXY
@@ -296,6 +327,44 @@ rules:
   - DOMAIN-SUFFIX,xinqiucc.com,DIRECT
   - DOMAIN-SUFFIX,qiezibenpao.com,DIRECT
   - DOMAIN-SUFFIX,tianwenca.com,DIRECT
+  # 4.5 新增：日志里发现的国内漏网域名（原本落入兜底走了 VPS）
+  # 环球网校（教育 App，开梯子打不开的原因）
+  - DOMAIN-SUFFIX,hqwx.com,DIRECT
+  - DOMAIN-SUFFIX,hqqt.com,DIRECT
+  - DOMAIN-SUFFIX,98809.com,DIRECT
+  - DOMAIN-SUFFIX,edu24ol.com,DIRECT
+  # 医学/医文教育网站
+  - DOMAIN-SUFFIX,yixuejy.com,DIRECT
+  - DOMAIN-SUFFIX,yixuejy.cn,DIRECT
+  - DOMAIN-SUFFIX,yiwenjy.com,DIRECT
+  - DOMAIN-SUFFIX,yiwenjy.cn,DIRECT
+  # 微信、拼多多、天翼账号、极验验证码
+  - DOMAIN-SUFFIX,weixin.com,DIRECT
+  - DOMAIN-SUFFIX,pddugc.com,DIRECT
+  - DOMAIN-SUFFIX,id6.me,DIRECT
+  - DOMAIN-SUFFIX,geevisit.com,DIRECT
+  # 抖音（视频、直播、电商、支付的后台与 CDN）
+  - DOMAIN-SUFFIX,snssdk.com,DIRECT
+  - DOMAIN-SUFFIX,yingt.fun,DIRECT
+  - DOMAIN-SUFFIX,ndcpp.com,DIRECT
+  - DOMAIN-SUFFIX,ydycdn.com,DIRECT
+  - DOMAIN-SUFFIX,wmzfylgdsz.com,DIRECT
+  - DOMAIN-SUFFIX,sjxydc.com,DIRECT
+  - DOMAIN-SUFFIX,bdcgslb.com,DIRECT
+  - DOMAIN-SUFFIX,vegslb.com,DIRECT
+  - DOMAIN-SUFFIX,volccdn.com,DIRECT
+  - DOMAIN-SUFFIX,bytefae.com,DIRECT
+  - DOMAIN-SUFFIX,ulpay.com,DIRECT
+  - DOMAIN-SUFFIX,jinritemai.com,DIRECT
+  - DOMAIN-SUFFIX,pangolin-dsp-toutiao.com,DIRECT
+  # 小红书、阿里统计、个推、R 汽车相关
+  - DOMAIN-SUFFIX,comfylink.com,DIRECT
+  - DOMAIN-SUFFIX,askdiandian.com,DIRECT
+  - DOMAIN-SUFFIX,dittocdn.com,DIRECT
+  - DOMAIN-SUFFIX,hzshudian.com,DIRECT
+  - DOMAIN-SUFFIX,mmstat.com,DIRECT
+  - DOMAIN-SUFFIX,gepush.com,DIRECT
+  - DOMAIN-SUFFIX,z-onesoft.com,DIRECT
   - GEOSITE,cn,DIRECT
 
   # 9. 已知非中国域名代理（放在 GEOIP 前，避免本地解析）

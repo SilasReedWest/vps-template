@@ -3,6 +3,17 @@
 geosite:openai
 keyword:openai
 domain:cdn.openaimerge.com
+# OpenAI 显式域名：语音（LiveKit）、实时通道、功能开关、App 错误上报（不完全依赖 geosite 新旧）
+domain:chatgpt.com
+domain:oaistatic.com
+domain:oaiusercontent.com
+domain:sora.com
+domain:oaistatsig.com
+domain:chatgpt.livekit.cloud
+domain:host.livekit.cloud
+domain:turn.livekit.cloud
+keyword:chatgpt-async-webps-prod
+full:o33249.ingest.us.sentry.io
 geosite:anthropic
 keyword:anthropic
 # Claude 全系（网页 / Mac App / Claude Code）：合集 + 显式域名 + 关键词，宁多勿漏
@@ -20,12 +31,19 @@ full:servd-anthropic-website.b-cdn.net
 full:cdn.usefathom.com
 full:http-intake.logs.us5.datadoghq.com
 full:browser-intake-us5-datadoghq.com
-full:challenges.cloudflare.com
+domain:challenges.cloudflare.com
 domain:statsig.com
 domain:statsigapi.net
 domain:featuregates.org
 domain:intercom.io
 domain:intercomcdn.com
+# Anthropic 新域名、Intercom 素材、hCaptcha（Stripe 付款验证）、Claude 桌面版错误上报
+domain:ant.dev
+domain:antspace.dev
+domain:intercom.com
+domain:intercomassets.com
+domain:hcaptcha.com
+full:o1158394.ingest.us.sentry.io
 # Anthropic 官方 IP 段（App 直接连 IP 时也能走住宅；ip: 开头的会单独生成一条 IP 规则）
 ip:160.79.104.0/23
 geosite:elevenlabs
@@ -36,11 +54,19 @@ geosite:xai
 geosite:twitter
 domain:arkoselabs.com
 domain:funcaptcha.com
+# Grok 新域名、X 身份验证（Socure）、X/Grok App 错误上报
+domain:grokipedia.com
+domain:grok-sandbox.com
+domain:socure.io
+full:o30969.ingest.us.sentry.io
 geosite:tiktok
 domain:byteoversea.com
 domain:lemon8-app.com
 domain:tiktokglobalshop.com
 domain:tiktokshop.com
+# TikTok 商城图片与存储（不在 geosite:tiktok 里）
+domain:ibyteimg.com
+domain:ibytedtos.com
 geosite:reddit
 domain:rednote.com
 domain:rednote.com.my
@@ -59,8 +85,21 @@ domain:wayfair.com
 domain:costco.com
 domain:homedepot.com
 domain:wish.com
+domain:ebayimg.com
+domain:ebaystatic.com
+domain:walmartimages.com
 geosite:shopify
 geosite:stripe
+domain:stripeassets.com
+# PayPal（含 Braintree）
+geosite:paypal
+domain:paypal.com
+domain:paypalobjects.com
+domain:paypal.me
+domain:paypal-community.com
+domain:paypal.cn
+domain:braintreegateway.com
+domain:braintree-api.com
 domain:mercury.com
 domain:deel.com
 domain:upwork.com
