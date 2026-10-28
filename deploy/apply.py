@@ -41,7 +41,7 @@ def load_cfg(path):
         v = c[f["k"]]
         if f.get("req") and not v: errs.append(f'{f["label"]}（{f["k"]}）必填')
         elif f.get("re") and v and not re.search(f["re"].replace("\\\\", "\\"), v): errs.append(f'{f["label"]}（{f["k"]}）格式不对：{v if not f.get("secret") else "***"}')
-    ports = [k for k in ("PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "BACKUP_PORT")]
+    ports = [k for k in ("PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "SELF_SITE_PORT", "BACKUP_PORT")]
     seen = {}
     for k in ports:
         if c[k] in seen: errs.append(f"端口重复：{k} 和 {seen[c[k]]} 都是 {c[k]}")
@@ -49,6 +49,9 @@ def load_cfg(path):
     if c["RES_ENABLE"] == "yes":
         for k in ("RES_HOST", "RES_PORT", "RES_USER", "RES_PASS"):
             if not c[k]: errs.append(f"启用了住宅出口，但 {k} 为空")
+    if c["REALITY_MODE"] == "self":
+        for k in ports:
+            if c[k] == "80": errs.append(f"偷自己模式要用 80 端口申请证书，{k} 不能是 80")
     if bool(c["REALITY_PRIVATE_KEY"]) != bool(c["REALITY_PUBLIC_KEY"]): errs.append("Reality 私钥和公钥要成对填写，或都留空")
     if c["BACKUP_WS_PATH"] and not c["BACKUP_WS_PATH"].startswith("/"): errs.append("WebSocket 路径要以 / 开头")
     if errs: die(".env 检查没通过：\n   - " + "\n   - ".join(errs))
@@ -122,10 +125,11 @@ def xray_template(c, default_tpl, filter_tag):
         outs.append({"tag": "residential-us", "protocol": "socks", "settings": {"servers": [{
             "address": c["RES_HOST"], "port": int(c["RES_PORT"]), "users": [{"user": c["RES_USER"], "pass": c["RES_PASS"]}]}]}})
     t["outbounds"] = outs
-    R = [{"type": "field", "inboundTag": ["api"], "outboundTag": "api"},
-         {"type": "field", "inboundTag": [filter_tag], "domain": [c["REALITY_TARGET"]], "outboundTag": "direct"},
-         {"type": "field", "inboundTag": [filter_tag], "outboundTag": "blocked"},
-         {"type": "field", "ip": ["geoip:private"], "outboundTag": "blocked"},
+    R = [{"type": "field", "inboundTag": ["api"], "outboundTag": "api"}]
+    if filter_tag:                                   # external 模式：防滥用过滤（只放行伪装目标）
+        R += [{"type": "field", "inboundTag": [filter_tag], "domain": [c["REALITY_TARGET"]], "outboundTag": "direct"},
+              {"type": "field", "inboundTag": [filter_tag], "outboundTag": "blocked"}]
+    R += [{"type": "field", "ip": ["geoip:private"], "outboundTag": "blocked"},
          {"type": "field", "protocol": ["bittorrent"], "outboundTag": "blocked"},
          {"type": "field", "vlessRoute": "1", "outboundTag": "direct"}]
     if res: R.append({"type": "field", "vlessRoute": "2", "outboundTag": "residential-us"})
@@ -144,7 +148,8 @@ def xray_template(c, default_tpl, filter_tag):
 
 def inbound_payloads(c, cert, key):
     sniff_full = {"enabled": True, "destOverride": ["http", "tls", "quic", "fakedns"], "metadataOnly": False, "routeOnly": False}
-    filt = {"enable": True, "remark": "reality-filter", "listen": "127.0.0.1", "port": int(c["REALITY_FILTER_PORT"]), "protocol": "tunnel",
+    self_mode = c["REALITY_MODE"] == "self"
+    filt = None if self_mode else {"enable": True, "remark": "reality-filter", "listen": "127.0.0.1", "port": int(c["REALITY_FILTER_PORT"]), "protocol": "tunnel",
             "expiryTime": 0, "total": 0,
             "settings": {"rewriteAddress": c["REALITY_TARGET"], "rewritePort": 443, "portMap": {}, "allowedNetwork": "tcp", "followRedirect": False},
             "streamSettings": {"security": "none"},
@@ -152,7 +157,10 @@ def inbound_payloads(c, cert, key):
     main = {"enable": True, "remark": "reality-main", "listen": "", "port": int(c["REALITY_PORT"]), "protocol": "vless", "expiryTime": 0, "total": 0,
             "settings": {"clients": [], "decryption": "none", "encryption": "none", "fallbacks": []},
             "streamSettings": {"network": "tcp", "tcpSettings": {"acceptProxyProtocol": False, "header": {"type": "none"}}, "security": "reality",
-                "realitySettings": {"show": False, "xver": 0, "target": "127.0.0.1:" + c["REALITY_FILTER_PORT"], "serverNames": [c["REALITY_TARGET"]],
+                "realitySettings": {"show": False, "xver": 0,
+                    # self：探测流量交给本机网页（IP 证书）；客户端按规范不会把 IP 当 SNI 发送，所以要允许空 SNI
+                    "target": "127.0.0.1:" + (c["SELF_SITE_PORT"] if self_mode else c["REALITY_FILTER_PORT"]),
+                    "serverNames": [c["PUBLIC_IP"], ""] if self_mode else [c["REALITY_TARGET"]],
                     "privateKey": c["REALITY_PRIVATE_KEY"], "minClientVer": c["REALITY_MIN_CLIENT_VER"], "maxClientVer": "", "maxTimediff": 0,
                     "shortIds": [s.strip() for s in c["REALITY_SHORT_IDS"].split(",")],
                     "settings": {"publicKey": c["REALITY_PUBLIC_KEY"], "fingerprint": c["REALITY_FINGERPRINT"], "serverName": "", "spiderX": "/"}}},
@@ -171,12 +179,14 @@ def main():
     c = load_cfg(sys.argv[1]); ok(".env 检查通过")
     if "--check" in sys.argv:
         for k in ("DOMAIN", "PANEL_PORT", "PANEL_PATH", "PANEL_USER", "PANEL_PASS", "XUI_VERSION", "CF_API_TOKEN", "ACME_EMAIL",
-                  "REALITY_TARGET", "SSH_LOGIN", "SSH_PUBKEY", "BACKUP_DAYS"):
+                  "REALITY_MODE", "REALITY_TARGET", "SELF_SITE_PORT", "SSH_LOGIN", "SSH_PUBKEY", "BACKUP_DAYS"):
             print(f"CFG_{k}={shlex.quote(c[k])}")
         return
     base = os.environ.get("XUI_API_BASE") or f'https://127.0.0.1:{c["PANEL_PORT"]}{slash(c["PANEL_PATH"])}panel/api'
     token = os.environ.get("XUI_API_TOKEN") or die("缺少面板 API 令牌（安装脚本会自动获取）")
-    if not c["REALITY_TARGET"]: die("伪装目标网站（REALITY_TARGET）为空：用安装脚本运行会自动挑选，或在 .env 里手动填一个")
+    c["PUBLIC_IP"] = os.environ.get("XUI_PUBLIC_IP", "")
+    if c["REALITY_MODE"] == "self" and not c["PUBLIC_IP"]: die("偷自己模式需要本机公网 IP（安装脚本会自动传入）")
+    if c["REALITY_MODE"] != "self" and not c["REALITY_TARGET"]: die("伪装目标网站（REALITY_TARGET）为空：用安装脚本运行会自动挑选，或在 .env 里手动填一个")
     cert = os.environ.get("XUI_CERT", f'/root/cert/{c["DOMAIN"]}/fullchain.pem'); key = os.environ.get("XUI_KEY", f'/root/cert/{c["DOMAIN"]}/privkey.pem')
     api = API(base, token)
     filled = gen_missing(c)
@@ -216,7 +226,9 @@ def main():
     filt, mainib, back = inbound_payloads(c, cert, key)
     existing = {ib["remark"]: ib for ib in (api.get("/inbounds/list") or [])}
     ids = {}
-    for p in (filt, mainib, back):
+    if filt is None and "reality-filter" in existing:   # 从 external 切到 self：过滤入口用不到了
+        api.post(f'/inbounds/del/{existing["reality-filter"]["id"]}'); ok("删除入站 reality-filter（偷自己模式不需要）")
+    for p in (x for x in (filt, mainib, back) if x):
         old = existing.get(p["remark"])
         if old:
             keep = json.loads(old["settings"]) if isinstance(old["settings"], str) else old["settings"]
@@ -244,13 +256,15 @@ def main():
     for name, ib, route in ((c["NAME_AUTO"], ids["reality-main"], ""), (c["NAME_VPS"], ids["reality-main"], "1"),
                             (c["NAME_RES"], ids["reality-main"], "2"), (c["NAME_BACKUP"], ids["vless-backup"], "")):
         if route == "2" and c["RES_ENABLE"] != "yes": continue
-        api.post("/hosts/add", {"inboundIds": [ib], "remark": name, "hosts": [], "port": 0, "security": "same", "vlessRoute": route, "serverDescription": ""})
+        h = {"inboundIds": [ib], "remark": name, "hosts": [], "port": 0, "security": "same", "vlessRoute": route, "serverDescription": ""}
+        if ib == ids["reality-main"] and c["REALITY_MODE"] == "self": h["sni"] = c["PUBLIC_IP"]   # 订阅里固定写 IP，不随机挑到空值
+        api.post("/hosts/add", h)
     ok("节点名：%s / %s / %s / %s" % (c["NAME_AUTO"], c["NAME_VPS"], c["NAME_RES"], c["NAME_BACKUP"]))
 
     # 6. Xray 模板（出站 + 路由）
     cur_tpl = api.post("/xray/")
     cur_tpl = json.loads(cur_tpl) if isinstance(cur_tpl, str) else cur_tpl
-    tpl = xray_template(c, cur_tpl["xraySetting"], tags["reality-filter"])
+    tpl = xray_template(c, cur_tpl["xraySetting"], tags.get("reality-filter") if c["REALITY_MODE"] != "self" else None)
     api.post("/xray/update", form={"xraySetting": json.dumps(tpl, ensure_ascii=False)})
     ok("路由规则 %d 条、出站 %d 个（直连 ForceIPv4%s）" % (len(tpl["routing"]["rules"]), len(tpl["outbounds"]), "，住宅已启用" if c["RES_ENABLE"] == "yes" else ""))
 

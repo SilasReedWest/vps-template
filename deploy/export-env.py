@@ -59,12 +59,19 @@ v["REALITY_PUBLIC_KEY"] = (rs.get("settings") or {}).get("publicKey", "")
 v["REALITY_SHORT_IDS"] = ",".join(rs.get("shortIds") or [])
 v["REALITY_FINGERPRINT"] = (rs.get("settings") or {}).get("fingerprint") or v["REALITY_FINGERPRINT"]
 v["REALITY_MIN_CLIENT_VER"] = rs.get("minClientVer", "") or ""
-if filt:
+sn = rs.get("serverNames") or []
+if fport and not filt and "" in sn:                  # 偷自己：目标是本机网页、允许空 SNI
+    v["REALITY_MODE"], v["SELF_SITE_PORT"], v["REALITY_TARGET"] = "self", fport, ""
+elif filt:
+    v["REALITY_MODE"] = "external"
     v["REALITY_FILTER_PORT"] = str(filt["port"])
     v["REALITY_TARGET"] = filt["S"].get("rewriteAddress") or (rs.get("serverNames") or [""])[0]
 else:
-    v["REALITY_TARGET"] = (rs.get("serverNames") or [""])[0]
+    v["REALITY_MODE"] = "external"
+    v["REALITY_TARGET"] = (sn or [""])[0]
     notes.append("没找到本机过滤入站（DMIT 防滥用整改）：重新安装时会按模板自动加上")
+if v["REALITY_MODE"] == "external":
+    notes.append("这台用的是「外部网站」伪装。新机器想用偷自己：网页工具里把「伪装模式」改成 self 即可")
 if back:
     v["BACKUP_PORT"] = str(back["port"])
     v["BACKUP_WS_PATH"] = (back["T"].get("wsSettings") or {}).get("path", "")
@@ -167,7 +174,7 @@ os.umask(old); os.chmod(OUT, 0o600)
 # ---------- 摘要（不显示密钥） ----------
 hide = lambda s: "（有）" if s else "（空）"
 print("✅ 已导出到 " + OUT + "（只有 root 可读）")
-for k, show in [("DOMAIN", 1), ("PANEL_PORT", 1), ("PANEL_USER", 0), ("PANEL_PASS", 0), ("SUB_PORT", 1), ("REALITY_PORT", 1), ("REALITY_TARGET", 1),
+for k, show in [("DOMAIN", 1), ("PANEL_PORT", 1), ("PANEL_USER", 0), ("PANEL_PASS", 0), ("SUB_PORT", 1), ("REALITY_PORT", 1), ("REALITY_MODE", 1), ("REALITY_TARGET", 1),
                 ("REALITY_FILTER_PORT", 1), ("REALITY_PRIVATE_KEY", 0), ("BACKUP_PORT", 1), ("CLIENT_NAME", 1), ("CLIENT_UUID", 0),
                 ("TRAFFIC_LIMIT_GB", 1), ("TRAFFIC_RESET_DAY", 1), ("NAME_AUTO", 1), ("RES_ENABLE", 1), ("RES_HOST", 0),
                 ("XUI_VERSION", 1), ("XRAY_VERSION", 1), ("SSH_LOGIN", 1), ("XRAY_ACCESS_LOG", 1)]:

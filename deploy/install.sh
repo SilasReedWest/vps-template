@@ -29,7 +29,8 @@ if [[ "${1:-}" == "--restore-db" ]]; then
   [[ -x $XUI_BIN ]] || die "请先完整运行一次本脚本装好面板，再恢复数据库"
   systemctl stop x-ui; cp -a /etc/x-ui/x-ui.db "/etc/x-ui/x-ui.db.bak.$(date +%s)" 2>/dev/null || true
   cp "$2" /etc/x-ui/x-ui.db; systemctl start x-ui
-  green "✅ 已恢复数据库，原数据库已备份在 /etc/x-ui/"; exit 0
+  green "✅ 已恢复数据库，原数据库已备份在 /etc/x-ui/"
+  echo "   如果这台机器的 IP 和备份时不一样，再运行一次安装命令（回车用上次的 .env），会按新 IP 更新证书和节点。"; exit 0
 fi
 
 # ---------- 1. 读取 .env ----------
@@ -59,7 +60,7 @@ gen(){ tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"; }
 CFG_PANEL_PATH="${CFG_PANEL_PATH#/}"; CFG_PANEL_PATH="${CFG_PANEL_PATH%/}"
 
 IP=$(curl -4 -fsS --max-time 10 https://api.ipify.org || curl -4 -fsS --max-time 10 https://ifconfig.me) || die "获取本机公网 IP 失败"
-if [[ -z "$CFG_REALITY_TARGET" ]]; then
+if [[ "$CFG_REALITY_MODE" != "self" && -z "$CFG_REALITY_TARGET" ]]; then
   echo "   伪装目标网站留空：扫描本机附近的网站，自动挑一个（约 1–3 分钟）…"
   CFG_REALITY_TARGET=$(python3 "$WORK/deploy/reality-scan.py" "$IP" | tail -1) && [[ -n "$CFG_REALITY_TARGET" ]] \
     || die "附近没有找到合适的伪装网站。请在 .env 的 REALITY_TARGET 手动填一个（见《部署攻略》），再重新运行"
@@ -170,20 +171,122 @@ fi
 step "5/8 申请证书（Let's Encrypt）"
 CERT_DIR=/root/cert/$CFG_DOMAIN; mkdir -p "$CERT_DIR"
 [[ -x ~/.acme.sh/acme.sh ]] || curl -fsSL https://get.acme.sh | sh -s email="${CFG_ACME_EMAIL:-admin@$CFG_DOMAIN}" >/dev/null
-ACME=~/.acme.sh/acme.sh; $ACME --set-default-ca --server letsencrypt >/dev/null
-if [[ -s "$CERT_DIR/fullchain.pem" ]] && openssl x509 -checkend 2592000 -noout -in "$CERT_DIR/fullchain.pem" >/dev/null 2>&1; then
-  green "✅ 已有有效证书，跳过申请"
+ACME=~/.acme.sh/acme.sh
+[[ "$CFG_REALITY_MODE" == "self" ]] && { $ACME --upgrade >/dev/null 2>&1 || true; }   # IP 证书需要较新的 acme.sh
+$ACME --set-default-ca --server letsencrypt >/dev/null
+NGX=/etc/nginx/conf.d/vps-template.conf; WEBROOT=/var/www/vps-template; IPC=/root/cert/ip
+IPRE="IP Address:${IP//./\\.}(,|$)"
+# 偷自己用的本机网页：80 只用于证书验证；伪装网页只监听 127.0.0.1，外面访问不到
+write_ngx(){
+  local v6=""; [[ -f /proc/net/if_inet6 ]] && v6="    listen [::]:80 default_server;"
+  {
+    echo "# 由 vps-template 安装脚本写入（偷自己模式），重跑安装会覆盖"
+    echo "server_tokens off;"
+    echo "server {"
+    echo "    listen 80 default_server;"
+    [[ -n "$v6" ]] && echo "$v6"
+    echo "    server_name _;"
+    echo "    location /.well-known/acme-challenge/ { root $WEBROOT; }"
+    echo "    location / { return 404; }"
+    echo "}"
+    if [[ -s $IPC/fullchain.pem ]]; then
+      echo "server {"
+      echo "    listen 127.0.0.1:$CFG_SELF_SITE_PORT ssl http2 default_server;"
+      echo "    server_name _;"
+      echo "    ssl_certificate $IPC/fullchain.pem;"
+      echo "    ssl_certificate_key $IPC/privkey.pem;"
+      echo "    ssl_protocols TLSv1.2 TLSv1.3;"
+      echo "    root $WEBROOT/site;"
+      echo "    index index.html;"
+      echo "    location / { try_files \$uri \$uri/ =404; }"
+      echo "}"
+    fi
+  } > "$NGX"
+  nginx -t >/dev/null 2>&1 || { nginx -t; die "nginx 配置检查没通过"; }
+}
+if [[ "$CFG_REALITY_MODE" == "self" ]]; then
+  command -v nginx >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx >/dev/null || die "安装 nginx 失败"
+  [[ -L /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
+  mkdir -p "$WEBROOT/.well-known/acme-challenge" "$WEBROOT/site"
+  [[ -f $WEBROOT/site/index.html ]] || echo '<!doctype html><html><head><meta charset="utf-8"><title>Welcome</title></head><body><h1>Welcome</h1><p>This site is under construction.</p></body></html>' > "$WEBROOT/site/index.html"
+  write_ngx
+  systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl restart nginx || die "nginx 启动失败：80 端口可能被别的程序占用（运行 ss -ltnp | grep :80 查看）"
+  METHOD=webroot
 else
-  if [[ -n "$CFG_CF_API_TOKEN" ]]; then
-    CF_Token="$CFG_CF_API_TOKEN" $ACME --issue --dns dns_cf -d "$CFG_DOMAIN" --keylength ec-256 --force || die "证书申请失败（DNS 验证）"
-  else
-    ss -ltn | grep -q ':80 ' && die "80 端口被占用，无法验证证书。填 Cloudflare 令牌可以不用 80 端口"
-    $ACME --issue --standalone --httpport 80 -d "$CFG_DOMAIN" --keylength ec-256 --force || die "证书申请失败：确认 80 端口可从外网访问"
+  if [[ -f $NGX ]]; then                     # 从 self 改回 external：撤掉本机网页
+    rm -f "$NGX"
+    if ls /etc/nginx/conf.d/*.conf /etc/nginx/sites-enabled/* >/dev/null 2>&1; then systemctl reload nginx || true
+    else systemctl disable --now nginx >/dev/null 2>&1 || true; fi
   fi
+  METHOD=standalone
+fi
+[[ -n "$CFG_CF_API_TOKEN" ]] && METHOD=dns
+
+# 域名证书（面板、订阅、备用节点用，90 天）
+OLDM=$(sed -n "s/^Le_Webroot='\(.*\)'$/\1/p" ~/.acme.sh/"${CFG_DOMAIN}_ecc/${CFG_DOMAIN}.conf" 2>/dev/null | head -1)
+case "$OLDM" in dns_cf) OLDM=dns;; no) OLDM=standalone;; "") ;; *) OLDM=webroot;; esac
+if [[ -s "$CERT_DIR/fullchain.pem" ]] && openssl x509 -checkend 2592000 -noout -in "$CERT_DIR/fullchain.pem" >/dev/null 2>&1 && [[ "$OLDM" == "$METHOD" ]]; then
+  green "✅ 已有有效的域名证书，跳过申请"
+else
+  case "$METHOD" in
+    dns) CF_Token="$CFG_CF_API_TOKEN" $ACME --issue --dns dns_cf -d "$CFG_DOMAIN" --keylength ec-256 --force || die "证书申请失败（DNS 验证）";;
+    webroot) $ACME --issue -d "$CFG_DOMAIN" -w "$WEBROOT" --keylength ec-256 --force || die "域名证书申请失败：确认域名已指向本机、80 端口可从外网访问";;
+    *) ss -ltn | grep -q ':80 ' && die "80 端口被占用，无法验证证书。填 Cloudflare 令牌可以不用 80 端口"
+       $ACME --issue --standalone --httpport 80 -d "$CFG_DOMAIN" --keylength ec-256 --force || die "证书申请失败：确认 80 端口可从外网访问";;
+  esac
   $ACME --install-cert -d "$CFG_DOMAIN" --ecc --key-file "$CERT_DIR/privkey.pem" --fullchain-file "$CERT_DIR/fullchain.pem" \
         --reloadcmd "systemctl restart x-ui" >/dev/null
-  chmod 600 "$CERT_DIR/privkey.pem"; green "✅ 证书已签发，会自动续期"
+  chmod 600 "$CERT_DIR/privkey.pem"; green "✅ 域名证书已签发，会自动续期"
 fi
+
+# 不再使用的 IP 证书（换了 IP，或改回 external）停止续期，免得一直续期失败
+for d in ~/.acme.sh/*_ecc; do
+  n=$(basename "$d" _ecc); [[ "$n" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || continue
+  [[ "$CFG_REALITY_MODE" == "self" && "$n" == "$IP" ]] && continue
+  $ACME --remove -d "$n" --ecc >/dev/null 2>&1 || true; rm -rf "$d"
+done
+# IP 证书（偷自己用，约 6 天有效）
+if [[ "$CFG_REALITY_MODE" == "self" ]]; then
+  if [[ -s $IPC/fullchain.pem ]] && openssl x509 -checkend 172800 -noout -in "$IPC/fullchain.pem" >/dev/null 2>&1 \
+     && openssl x509 -noout -text -in "$IPC/fullchain.pem" | grep -qE "$IPRE"; then
+    green "✅ 已有有效的 IP 证书，跳过申请"
+  else
+    $ACME --issue -d "$IP" -w "$WEBROOT" --cert-profile shortlived --days -3 --keylength ec-256 --force \
+      || die "IP 证书申请失败：确认 80 端口可从外网访问（服务商后台有安全组 / 防火墙的，要放行 TCP 80）"
+    mkdir -p "$IPC"
+    $ACME --install-cert -d "$IP" --ecc --key-file "$IPC/privkey.pem" --fullchain-file "$IPC/fullchain.pem" --reloadcmd "systemctl reload nginx" >/dev/null
+    chmod 600 "$IPC/privkey.pem"; green "✅ IP 证书已签发（约 6 天有效，到期前 3 天自动续期）"
+  fi
+  write_ngx; systemctl reload nginx || die "nginx 重载失败：journalctl -u nginx -n 30"
+  green "✅ 本机伪装网页已就绪（127.0.0.1:$CFG_SELF_SITE_PORT）"
+fi
+
+# 自动续期：用系统定时任务代替 acme.sh 自带的 crontab——开机自启，关机期间错过的会在开机后补做
+$ACME --uninstall-cronjob >/dev/null 2>&1 || true
+cat > /etc/systemd/system/vps-template-acme.service <<'EOF'
+[Unit]
+Description=vps-template: renew certificates (acme.sh)
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+Environment=HOME=/root
+ExecStart=/root/.acme.sh/acme.sh --cron --home /root/.acme.sh
+EOF
+cat > /etc/systemd/system/vps-template-acme.timer <<'EOF'
+[Unit]
+Description=vps-template: check certificates every 6 hours
+[Timer]
+OnBootSec=5min
+OnCalendar=*-*-* 00/6:00:00
+RandomizedDelaySec=30min
+Persistent=true
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload; systemctl enable --now vps-template-acme.timer >/dev/null 2>&1 || die "证书自动续期定时任务启动失败"
+green "✅ 证书自动续期：开机自动启动，每 6 小时检查一次"
 
 # ---------- 6. 安装 3x-ui（固定版本） ----------
 step "6/8 安装 3x-ui $CFG_XUI_VERSION"
@@ -207,7 +310,7 @@ green "✅ 面板运行中"
 step "7/8 按 .env 写入入站、用户、节点名、路由、住宅出口"
 TOKEN=$($XUI_BIN setting -getApiToken -tokenName vps-template 2>/dev/null | sed -n 's/.*apiToken: *//p' | tail -1)
 [[ -n "$TOKEN" ]] || die "获取面板 API 令牌失败"
-XUI_API_TOKEN="$TOKEN" XUI_CERT="$CERT_DIR/fullchain.pem" XUI_KEY="$CERT_DIR/privkey.pem" XUI_RESULT=/root/.xui-apply.json \
+XUI_API_TOKEN="$TOKEN" XUI_PUBLIC_IP="$IP" XUI_CERT="$CERT_DIR/fullchain.pem" XUI_KEY="$CERT_DIR/privkey.pem" XUI_RESULT=/root/.xui-apply.json \
   python3 "$WORK/deploy/apply.py" "$ENV_FILE"
 
 # ---------- 8. 验收 ----------
@@ -216,12 +319,26 @@ eval "$(python3 - "$ENV_FILE" <<'PY'
 import sys,shlex,importlib.util
 s=importlib.util.spec_from_file_location("a","/opt/vps-template/deploy/apply.py");m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 c=m.load_cfg(sys.argv[1])
-for k in ("REALITY_PORT","REALITY_TARGET","SUB_PORT","RES_ENABLE","RES_HOST","RES_PORT","RES_USER","RES_PASS"): print(f"V_{k}={shlex.quote(c[k])}")
+for k in ("REALITY_PORT","REALITY_MODE","REALITY_TARGET","SUB_PORT","RES_ENABLE","RES_HOST","RES_PORT","RES_USER","RES_PASS"): print(f"V_{k}={shlex.quote(c[k])}")
 PY
 )" >/dev/null
-t(){ echo | timeout 8 openssl s_client -connect "127.0.0.1:$V_REALITY_PORT" -servername "$1" 2>/dev/null | grep -q "subject="; }
-if t "$V_REALITY_TARGET"; then green "✅ Reality 伪装正常（$V_REALITY_TARGET 返回证书）"; else red "⚠️ 伪装目标 $V_REALITY_TARGET 没有返回证书：可能已失效，需要在面板里重新扫描一个"; fi
-if t www.cloudflare.com; then red "❌ 过滤没有生效：其他网站也能通过（DMIT 会警告），请检查"; else green "✅ 防滥用过滤正常（其他网站被拦截）"; fi
+if [[ "$V_REALITY_MODE" == "self" ]]; then
+  sc(){ echo | timeout 8 openssl s_client -connect "127.0.0.1:$V_REALITY_PORT" "$@" 2>/dev/null | openssl x509 -noout -text 2>/dev/null; }
+  if sc -noservername | grep -qE "$IPRE"; then green "✅ Reality 伪装正常（偷自己：443 返回本机的 IP 证书）"
+  else red "❌ 443 没有返回本机的 IP 证书：运行 systemctl status nginx 查看"; fi
+  if sc -servername www.cloudflare.com | grep -qE "$IPRE"; then green "✅ 不会转发到外部网站（冒充别的网站来探测，也只看到本机网页）"
+  else red "❌ 探测其他网站时没有返回本机证书，请检查"; fi
+  END=$(openssl x509 -enddate -noout -in "$IPC/fullchain.pem" | cut -d= -f2); H=$(( ($(date -d "$END" +%s) - $(date +%s)) / 3600 ))
+  NEXT=$(systemctl show -p NextElapseUSecRealtime --value vps-template-acme.timer 2>/dev/null || true)
+  green "✅ IP 证书还剩 $((H/24)) 天 $((H%24)) 小时，下次自动检查：${NEXT:-几小时内}"
+  if systemctl is-enabled --quiet nginx && systemctl is-enabled --quiet vps-template-acme.timer && systemctl is-enabled --quiet x-ui; then
+    green "✅ 开机自动启动：面板、本机伪装网页、证书续期"
+  else red "❌ 有服务没有设置开机自启，请重跑安装"; fi
+else
+  t(){ echo | timeout 8 openssl s_client -connect "127.0.0.1:$V_REALITY_PORT" -servername "$1" 2>/dev/null | grep -q "subject="; }
+  if t "$V_REALITY_TARGET"; then green "✅ Reality 伪装正常（$V_REALITY_TARGET 返回证书）"; else red "⚠️ 伪装目标 $V_REALITY_TARGET 没有返回证书：可能已失效，把 .env 里的伪装目标网站清空后重跑安装，会自动重新挑一个"; fi
+  if t www.cloudflare.com; then red "❌ 过滤没有生效：其他网站也能通过（DMIT 会警告），请检查"; else green "✅ 防滥用过滤正常（其他网站被拦截）"; fi
+fi
 systemctl is-active --quiet x-ui && pgrep -f 'bin/xray' >/dev/null && green "✅ Xray 运行中" || red "❌ Xray 没有运行：在面板首页查看错误"
 # 只显示国家 / 城市 / 运营商，不显示 IP
 where(){ curl -fsS --max-time 15 "$@" https://ipinfo.io/json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" / ".join(x for x in (d.get("country",""),d.get("city",""),d.get("org","")) if x))' 2>/dev/null; }
@@ -239,6 +356,7 @@ SUB=$(python3 -c 'import json;print(json.load(open("/root/.xui-apply.json"))["SU
   echo "面板用户名：$CFG_PANEL_USER"
   echo "面板密码：$CFG_PANEL_PASS"
   echo "订阅地址：$SUB"
+  echo "伪装模式：$([[ "$V_REALITY_MODE" == "self" ]] && echo "偷自己（本机 IP 证书）" || echo "外部网站 $V_REALITY_TARGET")"
 } > "$RESULT"; chmod 600 "$RESULT"
 python3 - >> "$RESULT" <<'PY'
 import json;f=json.load(open("/root/.xui-apply.json")).get("FILLED",{})
@@ -256,4 +374,4 @@ echo "客户端导入订阅后，在手机和电脑上各打开一次（详见�
 echo "   https://ip.net.coffee/claude/   Claude 出口应为住宅、信任分 ≥70、DNS 不在中国"
 echo "   https://browserleaks.com/webrtc 公网 IP 应为 VPS 的 IP"
 [[ -n "$SSH_KEY_WARN" ]] && red "⚠️ 已关闭密码登录：关闭本窗口前，先新开一个窗口确认能用密钥登录。"
-echo "防火墙提醒：如果服务商后台有安全组，放行 TCP $CFG_PANEL_PORT、$V_REALITY_PORT、$V_SUB_PORT 和备用节点端口。"
+echo "提醒：如果服务商后台有安全组，放行 TCP $([[ "$V_REALITY_MODE" == "self" ]] && echo "80、")$CFG_PANEL_PORT、$V_REALITY_PORT、$V_SUB_PORT 和备用节点端口（DMIT 默认全部放行，不用管）。"

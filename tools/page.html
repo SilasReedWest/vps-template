@@ -74,7 +74,7 @@ function check(f) {
   $(f.k).classList.toggle("bad", !!m); $("m_" + f.k).textContent = m; return !m;
 }
 function crossCheck() {
-  const v = val(), ports = ["PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "BACKUP_PORT"].filter(k => v[k]);
+  const v = val(), ports = ["PANEL_PORT", "SUB_PORT", "REALITY_PORT", "REALITY_FILTER_PORT", "SELF_SITE_PORT", "BACKUP_PORT"].filter(k => v[k]);
   const seen = {}; let ok = true;
   for (const k of ports) { if (seen[v[k]]) { $("m_" + k).textContent = "和 " + seen[v[k]] + " 端口重复"; $(k).classList.add("bad"); ok = false; } else seen[v[k]] = k; }
   if (!!v.REALITY_PRIVATE_KEY !== !!v.REALITY_PUBLIC_KEY) { $("m_REALITY_PUBLIC_KEY").textContent = "私钥和公钥要成对填写，或都留空后点「生成」"; ok = false; }
