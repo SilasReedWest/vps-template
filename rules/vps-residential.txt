@@ -1,4 +1,4 @@
-# VPS 住宅出口名单（Xray 写法）：匹配到的走住宅 IP（第 9 条规则）
+# VPS 住宅出口名单（Xray 写法）：匹配到的走住宅 IP（4.8：域名为倒数第 2 条规则，ip: 开头的单独生成最后一条 IP 规则）
 # 一行一个。geosite:xxx = 官方分类；domain:xxx = 域名及子域名；keyword:xxx = 包含关键词；full:xxx = 完整域名
 geosite:openai
 keyword:openai
@@ -44,8 +44,16 @@ domain:intercom.com
 domain:intercomassets.com
 domain:hcaptcha.com
 full:o1158394.ingest.us.sentry.io
+# 4.7：Claude 登录（Auth0）、Cloudflare 回源域名（原已被 keyword:anthropic 兜住，显式写出与客户端对齐）
+domain:anthropic.auth0.com
+full:anthropic.com.cdn.cloudflare.net
+# 4.8：claude.app（官方桌面版网络要求里列出；原已被 keyword:claude 兜住）
+domain:claude.app
 # Anthropic 官方 IP 段（App 直接连 IP 时也能走住宅；ip: 开头的会单独生成一条 IP 规则）
-ip:160.79.104.0/23
+# 4.7：/23 → 官方出站段 /21（含 /23）；4.8：补官方新增的入站 153.61.224.0/22、出站 153.61.208.0/20（两段互不包含）
+ip:160.79.104.0/21
+ip:153.61.208.0/20
+ip:153.61.224.0/22
 geosite:elevenlabs
 domain:suno.com
 domain:character.ai

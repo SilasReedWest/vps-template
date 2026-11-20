@@ -1,11 +1,20 @@
 # ============================================================
-# Clash 覆写 rules4.6｜人在中国大陆使用（2026-10-29）
+# Clash 覆写 rules4.9｜人在中国大陆使用（2026-11-19）
 # 通用：Clash Party、Clash Verge Rev（Mac / Windows 都能用，内核都是 Mihomo）
 #
 # 分工：终端只决定 DIRECT / PROXY；PROXY 选「自动分流」节点，
-# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.6）决定走住宅还是 VPS 出口。
+# 到达 VPS 后由 3x-ui 路由表（住宅ip路由规则4.8）决定走住宅还是 VPS 出口。
 # 终端里的显式 PROXY 规则只为一件事：防止被后面的 GEOSITE,cn / GEOIP,CN 误判直连。
-# 与 iPhone 端 myconfig4.6.conf 同版本、同口径。
+# 与 iPhone 端 myconfig4.9.conf、Windows 端 v2rayN-routing4.9.json 同版本、同口径
+# （v2rayN 路由由网页工具从本文件逐条转换，不单独维护）。
+#
+# 4.9 变更（2026-11-19）：日志里发现的国内流量补直连——停车缴费页 shheho.com（支付宝扫码缴费，原本落入兜底被送去 VPS，
+#   缴费页报错）、某国内 App 的移动网络节点 bvmlt.top、运营商内部网段 100.64.0.0/10（显式写出，和手机一致）。
+# 4.8 变更：Anthropic 官方 IP 页新增两段——入站 153.61.224.0/22、出站 153.61.208.0/20（两段互不包含，分开写）；
+#   这两段目前还没有对外宣告，ASN 399358 规则兜不住，所以逐段写 IP-CIDR。
+#   显式写出 claude.app（官方桌面版网络要求里列出；原本已被关键词 claude 兜住）。四端同步。
+# 4.7 变更：Anthropic IP 段 /23 扩为官方出站段 /21；新增 ASN 399358；显式写出登录（anthropic.auth0.com）
+#   和 Cloudflare 回源域名。VPS 端另加 STUN（UDP 3478 / 19302）走住宅；客户端无需改动，STUN 本来就走代理。
 # ============================================================
 
 mode: rule
@@ -80,6 +89,8 @@ rules:
   # 1. 本地和私有网络
   - GEOSITE,private,DIRECT
   - GEOIP,private,DIRECT,no-resolve
+  # 4.9：运营商内部网段（CGNAT，外网到不了），显式直连，和手机端一致
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
 
   # 2. 迅雷：整体直连，不进 VPS（VPS 端屏蔽 BT）
   - PROCESS-NAME,Thunder,DIRECT
@@ -227,7 +238,17 @@ rules:
   - DOMAIN-SUFFIX,intercomassets.com,PROXY
   - DOMAIN-SUFFIX,hcaptcha.com,PROXY
   - DOMAIN,o1158394.ingest.us.sentry.io,PROXY
-  - IP-CIDR,160.79.104.0/23,PROXY,no-resolve
+  # 4.7 新增：登录（Auth0）、Cloudflare 回源域名（原本靠关键词兜住，现显式写出）
+  - DOMAIN-SUFFIX,anthropic.auth0.com,PROXY
+  - DOMAIN,anthropic.com.cdn.cloudflare.net,PROXY
+  # 4.8 新增：claude.app（桌面版预览等，原本靠关键词兜住，现显式写出）
+  - DOMAIN-SUFFIX,claude.app,PROXY
+  # 7.1.1 Anthropic 官方 IP 段：4.7 由 /23 扩为 /21（含 /23）；4.8 补官方新增的 153.61 两段；再按 ASN 兜一层
+  - IP-CIDR,160.79.104.0/21,PROXY,no-resolve
+  - IP-CIDR,153.61.208.0/20,PROXY,no-resolve
+  - IP-CIDR,153.61.224.0/22,PROXY,no-resolve
+  - IP-ASN,399358,PROXY,no-resolve
+  # 7.1.2 xAI / Grok
   - GEOSITE,xai,PROXY
   # 4.5 新增：Grok 新域名、X 身份验证（Socure）、X/Grok App 错误上报
   - DOMAIN-SUFFIX,grokipedia.com,PROXY
@@ -385,6 +406,9 @@ rules:
   - DOMAIN-SUFFIX,mmstat.com,DIRECT
   - DOMAIN-SUFFIX,gepush.com,DIRECT
   - DOMAIN-SUFFIX,z-onesoft.com,DIRECT
+  # 4.9 新增：停车缴费页（支付宝扫码缴费，原本落入兜底走了 VPS，缴费页报错）、某国内 App 的移动网络节点
+  - DOMAIN-SUFFIX,shheho.com,DIRECT
+  - DOMAIN-SUFFIX,bvmlt.top,DIRECT
   - GEOSITE,cn,DIRECT
 
   # 9. 已知非中国域名代理（放在 GEOIP 前，避免本地解析）

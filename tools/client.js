@@ -51,7 +51,7 @@ CLIENT.v2rayn = (clashText, wechatIps) => {
     cur[kind].push(val);
   };
   for (const raw of String(clashText).split("\n")) {
-    const h = raw.match(/^\s*#\s*(\d+(?:\.\d+)?\.?\s+.+)$/); if (h) { sec = h[1].replace(/[：:（(].*$/, "").trim().slice(0, 40); continue; }
+    const h = raw.match(/^\s*#\s*(\d+(?:\.\d+)*\.?\s+.+)$/); if (h) { sec = h[1].replace(/[：:（(].*$/, "").trim().slice(0, 40); continue; }
     const m = raw.match(/^\s*-\s*([A-Z-]+),([^,#]+?)(?:,([A-Z]+))?(?:,no-resolve)?\s*$/); if (!m) continue;
     const [, t, x, p] = m, out = (t === "MATCH" ? x : p) === "DIRECT" ? "direct" : (t === "MATCH" ? x : p) === "REJECT" ? "block" : "proxy";
     if (t === "DOMAIN-SUFFIX") add(out, "domain", "domain:" + x);

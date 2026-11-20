@@ -1,5 +1,5 @@
 #!/bin/bash
-# 分流检查：汇总 Xray 访问日志，确认 AI / X / Reddit / TikTok 走住宅、Google / Saily 等走 VPS。
+# 分流检查：汇总 Xray 访问日志，确认 AI / X / Reddit / TikTok / WebRTC 的 STUN（UDP 3478、19302）走住宅、Google / Saily 等走 VPS。
 # 用法：bash route-check.sh [小时数，默认 6] [平台名，可选]
 #   例：bash route-check.sh 2 tiktok   → 额外列出最近 2 小时 TikTok 每个域名走了哪个出口
 # 前提：临时打开访问日志（面板 → Xray 设置 → 日志 → 访问日志填 /var/log/x-ui/access.log，保存并重启 Xray）。
@@ -21,27 +21,28 @@ python3 - "$LOG" "$HOURS" "$DETAIL" <<'PY'
 import re,sys,collections,datetime
 log,hours,detail=sys.argv[1],float(sys.argv[2]),sys.argv[3].lower()
 since=datetime.datetime.now()-datetime.timedelta(hours=hours)
-cats=[("TikTok",r"tiktok|ttwstatic|ttcdn-us|ttlivecdn|ttoverseaus|byteoversea|ibyteimg|ibytedtos|muscdn|musical\.ly|tik-tokapi|bytedapm|capcut|lemon8"),
+cats=[("STUN",r"^$"),("TikTok",r"tiktok|ttwstatic|ttcdn-us|ttlivecdn|ttoverseaus|byteoversea|ibyteimg|ibytedtos|muscdn|musical\.ly|tik-tokapi|bytedapm|capcut|lemon8"),
 ("Saily/Nord",r"saily|nordcdn|nordsec|nordpayments|nordaccount|nordvpn|adyen"),
 ("X/Grok",r"(^|\.)(x\.com|twitter\.com|twimg\.com|t\.co|grok\.com|x\.ai)$|arkoselabs|funcaptcha"),
 ("Reddit",r"reddit|redd\.it"),
-("Claude",r"claude|anthropic|^160\.79\.10[45]\."),
+("Claude",r"claude|anthropic|^160\.79\.1(0[4-9]|1[01])\.|^153\.61\.(20[89]|21[0-9]|22[0-7])\."),
 ("ChatGPT",r"openai|chatgpt|oaistatic|oaiusercontent"),
 ("Google/YouTube",r"google|youtube|gstatic|ggpht|gvt[0-9]|ytimg"),
 ("Meta",r"facebook|fbcdn|instagram|whatsapp|meta\.ai"),
 ("Discord",r"discord")]
-want_res={"X/Grok","Reddit","Claude","ChatGPT","TikTok"}; want_vps={"Google/YouTube","Saily/Nord"}
+want_res={"X/Grok","Reddit","Claude","ChatGPT","TikTok","STUN"}; want_vps={"Google/YouTube","Saily/Nord"}
 c=collections.Counter(); bad=collections.Counter(); hosts=collections.Counter(); first=last=None
-pat=re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d).*? accepted (?:tcp|udp):(.+):\d+ \[([^\]]+)\]")
+pat=re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d).*? accepted (tcp|udp):(.+):(\d+) \[([^\]]+)\]")
 for l in open(log,errors="ignore"):
     m=pat.search(l)
     if not m: continue
     t=datetime.datetime.strptime(m.group(1),"%Y/%m/%d %H:%M:%S")
     if t<since: continue
-    host=m.group(2).lower(); out=re.split(r"\s*(?:>>|->)\s*",m.group(3))[-1].strip()
+    proto,host,port=m.group(2),m.group(3).lower(),m.group(4); out=re.split(r"\s*(?:>>|->)\s*",m.group(5))[-1].strip()
     first=first or t; last=t
+    stun=proto=="udp" and port in ("3478","19302")
     for name,rx in cats:
-        if re.search(rx,host):
+        if (stun and name=="STUN") or (not stun and name!="STUN" and re.search(rx,host)):
             c[(name,out)]+=1
             if detail and detail in name.lower(): hosts[(host,out)]+=1
             if (name in want_res and out!="residential-us") or (name in want_vps and out=="residential-us"): bad[(name,host,out)]+=1
@@ -50,7 +51,7 @@ if not c: print("这段时间没有相关记录：用手机或电脑打开 X、R
 print(f"统计范围: {first} ~ {last}（VPS 本地时间）")
 print("平台 | 出口 | 次数")
 for (n,o),v in sorted(c.items()): print(f"{n} | {o} | {v}")
-print("\n出口不符合预期的:" if bad else "\n全部符合预期 ✅（AI / X / Reddit / TikTok 走住宅，Google / Saily 走 VPS）")
+print("\n出口不符合预期的:" if bad else "\n全部符合预期 ✅（AI / X / Reddit / TikTok / STUN 走住宅，Google / Saily 走 VPS）")
 for (n,h,o),v in bad.most_common(30): print(f"  {n} | {h} | {o} | {v}次")
 if detail:
     print(f"\n「{detail}」每个域名的出口:" if hosts else f"\n这段时间没有「{detail}」的记录")

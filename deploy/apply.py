@@ -132,7 +132,11 @@ def xray_template(c, default_tpl, filter_tag):
     R += [{"type": "field", "ip": ["geoip:private"], "outboundTag": "blocked"},
          {"type": "field", "protocol": ["bittorrent"], "outboundTag": "blocked"},
          {"type": "field", "vlessRoute": "1", "outboundTag": "direct"}]
-    if res: R.append({"type": "field", "vlessRoute": "2", "outboundTag": "residential-us"})
+    if res:
+        R.append({"type": "field", "vlessRoute": "2", "outboundTag": "residential-us"})
+        # 4.7：WebRTC 的 STUN 查询（UDP 3478 / 19302）走住宅，让网页 IP 与 WebRTC IP 一致。
+        # 必须排在「前置 VPS 规则」（geosite:google）前面，否则 Google 的 STUN 会被送回 VPS。住宅 SOCKS5 需支持 UDP。
+        R.append({"type": "field", "network": "udp", "port": "3478,19302", "outboundTag": "residential-us"})
     R.append({"type": "field", "domain": read_list("vps-direct.txt"), "outboundTag": "direct"})
     if res:
         lst = read_list("vps-residential.txt") + extra_domains(c["EXTRA_RES_DOMAINS"])

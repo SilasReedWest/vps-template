@@ -1,4 +1,4 @@
-# VPS 直连例外（第 8 条规则）：排在住宅名单前，防止被住宅名单误抓
+# VPS 直连例外（「前置 VPS 规则」）：排在 STUN 规则之后、住宅名单之前，防止被住宅名单误抓
 geosite:google
 geosite:youtube
 domain:aws.amazon.com
