@@ -25,7 +25,7 @@ cats=[("STUN",r"^$"),("TikTok",r"tiktok|ttwstatic|ttcdn-us|ttlivecdn|ttoverseaus
 ("Saily/Nord",r"saily|nordcdn|nordsec|nordpayments|nordaccount|nordvpn|adyen"),
 ("X/Grok",r"(^|\.)(x\.com|twitter\.com|twimg\.com|t\.co|grok\.com|x\.ai)$|arkoselabs|funcaptcha"),
 ("Reddit",r"reddit|redd\.it"),
-("Claude",r"claude|anthropic|^160\.79\.1(0[4-9]|1[01])\.|^153\.61\.(20[89]|21[0-9]|22[0-7])\."),
+("Claude",r"claude|anthropic|(^|\.)(clau\.de|ant\.dev|antspace\.dev|siftscience\.com|sift\.com|withpersona\.com|yoti\.com|intercom-messenger\.com|intercom-chat\.com|browser-intake-us5-datadoghq\.com|us5\.datadoghq\.com|usefathom\.com)$|^o1158394\.ingest\.us\.sentry\.io$|^160\.79\.1(0[4-9]|1[01])\.|^153\.61\.(20[89]|21[0-9]|22[0-7])\."),
 ("ChatGPT",r"openai|chatgpt|oaistatic|oaiusercontent"),
 ("Google/YouTube",r"google|youtube|gstatic|ggpht|gvt[0-9]|ytimg"),
 ("Meta",r"facebook|fbcdn|instagram|whatsapp|meta\.ai"),
